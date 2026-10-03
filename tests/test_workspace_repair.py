@@ -71,6 +71,21 @@ def test_unified_patch_is_bounded_and_reversible(tmp_path: Path) -> None:
     assert (workspace / "app.py").read_text(encoding="utf-8") == 'print("broken")\n'
 
 
+def test_workspace_edit_preserves_executable_file_mode(tmp_path: Path) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    script = workspace / "run.sh"
+    script.write_text("#!/bin/sh\necho old\n", encoding="utf-8")
+    try:
+        script.chmod(0o755)
+    except OSError:
+        pytest.skip("file mode changes are unavailable in this environment")
+    if script.stat().st_mode & 0o111 == 0:
+        pytest.skip("executable mode bits are unavailable in this environment")
+    WorkspaceEditor(workspace).replace_text("run.sh", "old", "new")
+    assert script.stat().st_mode & 0o777 == 0o755
+
+
 @pytest.mark.parametrize(
     "path", ["../outside.txt", "/tmp/outside.txt", "C:\\outside.txt", ".git/config"]
 )

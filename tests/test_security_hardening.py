@@ -17,6 +17,7 @@ from reproscout.sandbox import (
     SandboxConfig,
     SandboxError,
 )
+from reproscout.security import BoundedReadError, read_bounded_workspace_file
 
 
 def test_public_url_policy_rejects_private_destinations_credentials_and_queries() -> (
@@ -174,3 +175,29 @@ def test_sandbox_defaults_to_no_network_and_bounds_workspace(tmp_path: Path) -> 
 
     with pytest.raises(SandboxError, match="byte-size"):
         sandbox._validate_workspace()
+
+
+def test_bounded_workspace_reads_reject_large_and_symlinked_files(
+    tmp_path: Path,
+) -> None:
+    workspace = tmp_path / "workspace"
+    workspace.mkdir()
+    (workspace / "normal.txt").write_bytes(b"safe\n")
+    assert (
+        read_bounded_workspace_file(workspace, "normal.txt", max_bytes=100) == b"safe\n"
+    )
+    (workspace / "large.txt").write_bytes(b"x" * 101)
+    with pytest.raises(BoundedReadError, match="read limit"):
+        read_bounded_workspace_file(workspace, "large.txt", max_bytes=100)
+
+    outside = tmp_path / "outside.txt"
+    outside.write_text("outside\n", encoding="utf-8")
+    link = workspace / "nested"
+    link.mkdir()
+    nested_link = link / "escape.txt"
+    try:
+        nested_link.symlink_to(outside)
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation is unavailable in this environment")
+    with pytest.raises(BoundedReadError, match="Symlink"):
+        read_bounded_workspace_file(workspace, "nested/escape.txt", max_bytes=100)

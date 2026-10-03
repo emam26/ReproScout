@@ -86,9 +86,9 @@ def _run_docker_command(
             if not chunk:
                 return
             buffer = buffers[name]
-            remaining = _DOCKER_OUTPUT_LIMIT_BYTES - len(buffer)
-            if remaining > 0:
-                buffer.extend(chunk[:remaining])
+            buffer.extend(chunk)
+            if len(buffer) > _DOCKER_OUTPUT_LIMIT_BYTES:
+                del buffer[:-_DOCKER_OUTPUT_LIMIT_BYTES]
 
     try:
         process = subprocess.Popen(

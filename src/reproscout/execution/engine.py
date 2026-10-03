@@ -180,7 +180,7 @@ class PlanExecutionEngine:
                             timeout_seconds=min(step.timeout_seconds, remaining),
                             artifacts=artifacts,
                         )
-                        if isinstance(sandbox, DockerSandbox):
+                        if isinstance(sandbox, DockerSandbox) and not result.timed_out:
                             try:
                                 environment_fingerprint = (
                                     collect_environment_fingerprint(
@@ -189,7 +189,7 @@ class PlanExecutionEngine:
                                         config=sandbox_config,
                                     )
                                 )
-                            except EnvironmentFingerprintError:
+                            except (EnvironmentFingerprintError, SandboxError):
                                 environment_fingerprint = None
                     except SandboxError:
                         result = self._record_sandbox_failure(
