@@ -132,6 +132,19 @@ class RunReportWriter:
                     *[f"  - {item}" for item in report.documented_setup],
                 ]
             )
+        lines.extend(["", "## Planned actions and provenance", ""])
+        if report.plan_steps:
+            for step in report.plan_steps:
+                command = step.command or "(no command)"
+                source = step.source_path or "no source location"
+                if step.source_location:
+                    source += f":{step.source_location}"
+                lines.append(
+                    f"- `{step.step_id}` `{step.action_type.value}` `{command}` "
+                    f"— `{step.provenance.value}`, source: `{source}`"
+                )
+        else:
+            lines.append("- No plan provenance was supplied.")
         lines.extend(["", "## Agent-assisted reproduction", ""])
         if report.agent_assisted_attempts:
             for attempt in report.agent_assisted_attempts:
@@ -177,6 +190,19 @@ class RunReportWriter:
             lines.append(f"- {report.verification.summary}")
         else:
             lines.append("- Verification was not supplied.")
+        lines.extend(["", "## Goal coverage", ""])
+        if report.goal_coverage is not None:
+            lines.append(f"- Status: `{report.goal_coverage.coverage_status}`")
+            lines.append(
+                "- Required milestones: "
+                + ", ".join(report.goal_coverage.required_milestones)
+            )
+            lines.extend(
+                f"- `{item.milestone}`: `{item.status.value}` — {item.detail}"
+                for item in report.goal_coverage.observations
+            )
+        else:
+            lines.append("- No explicit milestone coverage contract was supplied.")
         lines.extend(["", "## Final status", ""])
         if report.final_status is not None:
             lines.append(f"- `{report.final_status.status.value}`")

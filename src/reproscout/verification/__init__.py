@@ -2,6 +2,9 @@
 
 from .engine import ObjectiveVerificationEngine, VerificationEngineError
 from .models import (
+    GoalCoverage,
+    GoalMilestoneObservation,
+    GoalMilestoneStatus,
     VerificationCheck,
     VerificationCheckStatus,
     VerificationEvidence,
@@ -11,6 +14,9 @@ from .models import (
 )
 
 __all__ = [
+    "GoalCoverage",
+    "GoalMilestoneObservation",
+    "GoalMilestoneStatus",
     "ObjectiveVerificationEngine",
     "VerificationCheck",
     "VerificationCheckStatus",

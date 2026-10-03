@@ -5,6 +5,7 @@ from .models import (
     ReportAttempt,
     ReportAttemptSource,
     ReportFailure,
+    ReportPlanStep,
     RunReport,
 )
 from .writer import ReportError, RunReportWriter
@@ -15,6 +16,7 @@ __all__ = [
     "ReportAttemptSource",
     "ReportError",
     "ReportFailure",
+    "ReportPlanStep",
     "RunReport",
     "RunReportWriter",
 ]

@@ -24,6 +24,7 @@ class CleanRoomRecipe(DiagnosticModel):
 
     schema_version: str = Field(default="1.0", pattern=r"^1\.0$")
     repository: str = Field(min_length=1, max_length=500)
+    repository_url: str = Field(min_length=1, max_length=2_000)
     commit_sha: str = Field(min_length=1, max_length=200)
     goal: str = Field(min_length=1, max_length=500)
     plan: ReproductionPlan

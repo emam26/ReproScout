@@ -7,6 +7,8 @@ from enum import StrEnum
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from reproscout.diagnostics.models import EnvironmentFingerprint
+
 
 class ExecutionFailureKind(StrEnum):
     """Deterministically distinguish initial execution failure classes."""
@@ -39,6 +41,9 @@ class StepExecutionResult(BaseModel):
     timed_out: bool
     container_id: str | None = None
     failure_kind: ExecutionFailureKind | None = None
+    provenance: str | None = None
+    source_path: str | None = None
+    source_location: str | None = None
 
 
 class RunArtifactPaths(BaseModel):
@@ -68,6 +73,10 @@ class ExecutionRunResult(BaseModel):
     started_at: datetime
     finished_at: datetime
     artifacts: RunArtifactPaths
+    repository: str | None = None
+    commit_sha: str | None = None
+    goal: str | None = None
+    environment: EnvironmentFingerprint | None = None
 
 
 class ExecutionLimits(BaseModel):

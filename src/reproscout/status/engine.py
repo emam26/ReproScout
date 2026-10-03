@@ -5,6 +5,7 @@ from __future__ import annotations
 from collections.abc import Iterable
 
 from reproscout.verification import (
+    GoalCoverage,
     VerificationLevel,
     VerificationResult,
     VerificationResultStatus,
@@ -130,6 +131,28 @@ def compute_reproduction_status(
             clean_room_required,
             clean_room_verified,
         )
+    if (
+        verification.goal_coverage is not None
+        and verification.goal_coverage.coverage_status != "COMPLETE"
+    ):
+        return _result(
+            ReproductionStatus.PARTIAL,
+            [
+                _reason(
+                    StatusReasonCode.GOAL_NOT_COVERED,
+                    "The requested goal has unmet execution milestones: "
+                    + ", ".join(verification.goal_coverage.unmet_milestones),
+                    [
+                        observation.milestone
+                        for observation in verification.goal_coverage.observations
+                    ],
+                )
+            ],
+            verification,
+            workflow_succeeded,
+            clean_room_required,
+            clean_room_verified,
+        )
     if verification.level in {VerificationLevel.L0, VerificationLevel.L1}:
         return _result(
             ReproductionStatus.PARTIAL,
@@ -178,6 +201,7 @@ def compute_reproduction_status(
         workflow_succeeded,
         clean_room_required,
         clean_room_verified,
+        verification.goal_coverage if verification else None,
     )
 
 
@@ -203,7 +227,10 @@ def _result(
     workflow_succeeded: bool | None,
     clean_room_required: bool,
     clean_room_verified: bool | None,
+    goal_coverage: GoalCoverage | None = None,
 ) -> ReproductionStatusResult:
+    if goal_coverage is None and verification is not None:
+        goal_coverage = verification.goal_coverage
     return ReproductionStatusResult(
         status=status,
         reasons=reasons,
@@ -212,4 +239,5 @@ def _result(
         workflow_succeeded=workflow_succeeded,
         clean_room_required=clean_room_required,
         clean_room_verified=clean_room_verified,
+        goal_coverage=goal_coverage,
     )

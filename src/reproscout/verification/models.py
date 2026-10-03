@@ -31,6 +31,33 @@ class VerificationResultStatus(StrEnum):
     UNSPECIFIED = "UNSPECIFIED"
 
 
+class GoalMilestoneStatus(StrEnum):
+    PASSED = "PASSED"
+    FAILED = "FAILED"
+    NOT_EXECUTED = "NOT_EXECUTED"
+    NO_TESTS_COLLECTED = "NO_TESTS_COLLECTED"
+    ALL_SKIPPED = "ALL_SKIPPED"
+    TOOL_UNAVAILABLE = "TOOL_UNAVAILABLE"
+
+
+class GoalMilestoneObservation(DiagnosticModel):
+    milestone: str = Field(min_length=1, max_length=100)
+    status: GoalMilestoneStatus
+    step_id: str | None = Field(default=None, max_length=100)
+    detail: str = Field(min_length=1, max_length=2_000)
+
+
+class GoalCoverage(DiagnosticModel):
+    requested_goal: str = Field(min_length=1, max_length=100)
+    required_milestones: list[str] = Field(default_factory=list, max_length=10)
+    observed_milestones: list[str] = Field(default_factory=list, max_length=10)
+    unmet_milestones: list[str] = Field(default_factory=list, max_length=10)
+    coverage_status: str = Field(pattern=r"^(COMPLETE|PARTIAL|NOT_STARTED)$")
+    observations: list[GoalMilestoneObservation] = Field(
+        default_factory=list, max_length=20
+    )
+
+
 class VerificationEvidence(DiagnosticModel):
     """One bounded, machine-observed fact supporting a check."""
 
@@ -44,12 +71,15 @@ class VerificationCheck(DiagnosticModel):
 
     check_id: str = Field(pattern=r"^check-[0-9]{3}$")
     target_id: str = Field(pattern=r"^verify-[0-9]{3}$")
+    step_id: str | None = Field(default=None, max_length=100)
     target_type: VerificationTargetType
     level: VerificationLevel
     required: bool = True
     status: VerificationCheckStatus
     reason: str = Field(min_length=1, max_length=2_000)
     evidence: list[VerificationEvidence] = Field(min_length=1, max_length=10)
+    milestone: str | None = Field(default=None, max_length=100)
+    milestone_status: GoalMilestoneStatus | None = None
 
     @model_validator(mode="after")
     def _status_matches_pass_flag(self) -> VerificationCheck:
@@ -67,6 +97,7 @@ class VerificationResult(DiagnosticModel):
     checks: list[VerificationCheck] = Field(min_length=1, max_length=100)
     summary: str = Field(min_length=1, max_length=2_000)
     execution_run_id: str | None = Field(default=None, max_length=200)
+    goal_coverage: GoalCoverage | None = None
 
     @model_validator(mode="after")
     def _check_ids_are_sequential(self) -> VerificationResult:

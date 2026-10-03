@@ -6,6 +6,7 @@ from .clone import (
     RunWorkspace,
     RunWorkspaceError,
     clone_repository,
+    clone_repository_at_commit,
     create_run_workspace,
 )
 from .manifest import ManifestError, RepositoryManifest, build_manifest
@@ -22,6 +23,7 @@ __all__ = [
     "RunWorkspaceError",
     "build_manifest",
     "clone_repository",
+    "clone_repository_at_commit",
     "create_run_workspace",
     "parse_github_url",
 ]

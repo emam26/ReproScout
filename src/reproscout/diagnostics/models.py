@@ -220,12 +220,15 @@ class VerificationTargetType(StrEnum):
     TESTS_EXECUTE = "TESTS_EXECUTE"
     ARTIFACT_EXISTS = "ARTIFACT_EXISTS"
     OUTPUT_CONDITION = "OUTPUT_CONDITION"
+    GOAL_MILESTONE = "GOAL_MILESTONE"
 
 
 class VerificationTarget(DiagnosticModel):
     """Objective evidence condition for a later verifier."""
 
     target_id: str = Field(pattern=r"^verify-[0-9]{3}$")
+    step_id: str | None = Field(default=None, pattern=r"^step-[0-9]{3}$")
+    attempt_number: int = Field(default=1, ge=1)
     target_type: VerificationTargetType
     description: str = Field(min_length=1, max_length=1_000)
     command: str | None = Field(default=None, max_length=2_000)
@@ -234,6 +237,7 @@ class VerificationTarget(DiagnosticModel):
     artifact_size_bytes: int | None = Field(default=None, ge=0)
     artifact_sha256: str | None = Field(default=None, pattern=r"^[a-f0-9]{64}$")
     output_pattern: str | None = Field(default=None, max_length=1_000)
+    milestone: str | None = Field(default=None, max_length=100)
     required: bool = True
 
     @model_validator(mode="after")
@@ -275,6 +279,12 @@ class VerificationTarget(DiagnosticModel):
             and self.command is None
         ):
             raise ValueError("Command verification requires command.")
+        if self.target_type is VerificationTargetType.GOAL_MILESTONE and (
+            self.milestone is None or self.command is not None
+        ):
+            raise ValueError(
+                "Goal milestone verification requires a milestone and no command."
+            )
         return self
 
 
@@ -282,6 +292,9 @@ class VerificationContract(DiagnosticModel):
     """Finite success contract without a final reproducibility classification."""
 
     goal: str = Field(min_length=1, max_length=200)
+    repository: str | None = Field(default=None, max_length=500)
+    commit_sha: str | None = Field(default=None, max_length=200)
+    required_milestones: list[str] = Field(default_factory=list, max_length=10)
     targets: list[VerificationTarget] = Field(min_length=1, max_length=50)
 
     @model_validator(mode="after")

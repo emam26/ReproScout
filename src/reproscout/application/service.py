@@ -37,6 +37,7 @@ from reproscout.repo.clone import (
     RunWorkspace,
     RunWorkspaceError,
     clone_repository,
+    clone_repository_at_commit,
     create_run_workspace,
 )
 from reproscout.repo.manifest import ManifestError, RepositoryManifest, build_manifest
@@ -45,11 +46,17 @@ from reproscout.reporting import (
     ReportAttempt,
     ReportAttemptSource,
     ReportFailure,
+    ReportPlanStep,
     RunReport,
     RunReportWriter,
 )
 from reproscout.sandbox import SandboxError, check_docker_available
-from reproscout.security import redact_sensitive_text, reject_sensitive_mapping
+from reproscout.security import (
+    BoundedReadError,
+    read_bounded_workspace_text,
+    redact_sensitive_text,
+    reject_sensitive_mapping,
+)
 from reproscout.state import (
     AgentAction,
     EventType,
@@ -131,6 +138,7 @@ class ServiceError(RuntimeError):
 
 
 CloneFunction = Callable[[str, Path], object]
+CleanRoomCloneFunction = Callable[[str, Path, str], object]
 ManifestFunction = Callable[[GitHubRepository, object], RepositoryManifest]
 ExecutionFactory = Callable[[RunStore], PlanExecutionEngine]
 
@@ -143,6 +151,7 @@ class AuditService:
         runs_dir: Path | None = None,
         *,
         clone_fn: CloneFunction = clone_repository,
+        cleanroom_clone_fn: CleanRoomCloneFunction = clone_repository_at_commit,
         manifest_fn: ManifestFunction = build_manifest,
         analyzer: RepositoryAnalyzer | None = None,
         planner: ReproductionPlanner | None = None,
@@ -151,6 +160,7 @@ class AuditService:
         configured = runs_dir if runs_dir is not None else get_settings().runs_dir
         self.runs_dir = Path(configured).expanduser().resolve()
         self.clone_fn = clone_fn
+        self.cleanroom_clone_fn = cleanroom_clone_fn
         self.manifest_fn = manifest_fn
         self.analyzer = analyzer or RepositoryAnalyzer()
         self.planner = planner or ReproductionPlanner()
@@ -246,6 +256,7 @@ class AuditService:
                     run_directory=workspace.run_dir,
                     workspace=manifest.workspace_path,
                     allow_repair=True,
+                    finalize=False,
                 )
                 diagnosis_result = self._diagnose_if_needed(
                     store,
@@ -253,7 +264,6 @@ class AuditService:
                     manifest,
                     provider=self._provider(request),
                 )
-                self._finish_after_execution(store, run.run_id, execution_result)
                 verification = self._verify(
                     plan, execution_result, manifest.workspace_path
                 )
@@ -263,7 +273,11 @@ class AuditService:
                 if execution_result.workflow_succeeded and verification is not None:
                     try:
                         recipe = recipe_from_plan(plan)
-                        clean_result = CleanRoomRunner(store, execution).run(
+                        clean_result = CleanRoomRunner(
+                            store,
+                            execution,
+                            clone_fn=self.cleanroom_clone_fn,
+                        ).run(
                             recipe,
                             source_workspace=manifest.workspace_path,
                             run_directory=workspace.run_dir / "clean-room-runs",
@@ -280,6 +294,7 @@ class AuditService:
                     clean_room_required=execution_result.workflow_succeeded,
                     clean_room_verified=clean_room_verified,
                 )
+                self._finish_after_verification(store, run.run_id, status)
                 report = self._build_report(
                     request,
                     manifest,
@@ -293,6 +308,9 @@ class AuditService:
                     report,
                     events=store.list_events(run.run_id),
                     commands=execution_result.steps,
+                    environment=(
+                        execution_result.environment or plan.resolved_environment
+                    ),
                     recipe_commands=recipe.recipe_commands
                     if recipe is not None
                     else None,
@@ -364,7 +382,11 @@ class AuditService:
                 store.get_run(run_id)
                 execution = self.execution_factory(store)
                 recipe = recipe_from_plan(plan)
-                result = CleanRoomRunner(store, execution).run(
+                result = CleanRoomRunner(
+                    store,
+                    execution,
+                    clone_fn=self.cleanroom_clone_fn,
+                ).run(
                     recipe,
                     source_workspace=source_workspace.resolve(),
                     run_directory=run_directory / "reproduction-runs",
@@ -428,16 +450,21 @@ class AuditService:
         return create_provider(settings)
 
     @staticmethod
-    def _finish_after_execution(
+    def _finish_after_verification(
         store: RunStore,
         run_id: str,
-        execution: ExecutionRunResult,
+        status: ReproductionStatusResult,
     ) -> None:
         state = store.get_run(run_id)
         if state.stage is Stage.DEBUG:
             store.transition(run_id, Stage.VERIFY)
             store.transition(run_id, Stage.REPORT)
-            store.finish(run_id, RunOutcome.FAILED)
+            outcome = (
+                RunOutcome.SUCCEEDED
+                if status.status.value == "REPRODUCED"
+                else RunOutcome.FAILED
+            )
+            store.finish(run_id, outcome)
 
     @staticmethod
     def _verify(
@@ -477,15 +504,18 @@ class AuditService:
         )
         documentation: list[tuple[str, str]] = []
         for relative in manifest.documentation_files[:5]:
-            path = manifest.workspace_path / relative
             try:
                 documentation.append(
                     (
                         relative,
-                        path.read_text(encoding="utf-8", errors="replace")[:8_000],
+                        read_bounded_workspace_text(
+                            manifest.workspace_path,
+                            relative,
+                            max_bytes=8_000,
+                        ),
                     )
                 )
-            except OSError:
+            except (BoundedReadError, OSError):
                 continue
         context = EvidenceBuilder().build(
             normalized,
@@ -545,6 +575,18 @@ class AuditService:
             documented_setup=[
                 step.command for step in plan.steps if step.command is not None
             ],
+            plan_steps=[
+                ReportPlanStep(
+                    step_id=step.step_id,
+                    action_type=step.action_type,
+                    command=step.command,
+                    provenance=step.provenance,
+                    source_path=step.source_path,
+                    source_location=step.source_location,
+                    attempt_number=step.attempt_number,
+                )
+                for step in plan.steps
+            ],
             initial_attempt=ReportAttempt(
                 attempt_id="attempt-001",
                 source=ReportAttemptSource.OFFICIAL_DOCUMENTED,
@@ -557,6 +599,7 @@ class AuditService:
             failures=failures,
             diagnoses=[diagnosis] if diagnosis is not None else [],
             verification=verification,
+            goal_coverage=verification.goal_coverage if verification else None,
             final_status=status,
             blockers=blockers,
             documentation_gaps=[],

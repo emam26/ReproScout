@@ -161,11 +161,12 @@ def test_successful_plan_runs_in_order_and_persists_evidence(tmp_path: Path) -> 
     assert state.outcome is RunOutcome.SUCCEEDED
     assert [command for command, _ in created[0].commands] == [
         "python -m pip install .",
-        "python demo.py",
     ]
+    assert [command for command, _ in created[1].commands] == ["python demo.py"]
     assert created[0].created is True
     assert created[0].destroyed is True
     assert created[0].config.network == "none"
+    assert created[1].config.network == "none"
     assert [event.event_type for event in events].count(EventType.ATTEMPT_RECORDED) == 2
     assert [event.event_type for event in events].count(EventType.TOOL_CALLED) == 2
     assert [event.event_type for event in events].count(

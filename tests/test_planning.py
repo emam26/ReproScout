@@ -12,6 +12,7 @@ from reproscout.planning import (
     PlanBaseline,
     PlanLimitError,
     PlannerLimits,
+    PlanProvenance,
     ReproductionPlanner,
     RiskLevel,
     UnsafePlanError,
@@ -256,3 +257,51 @@ def test_same_analysis_always_produces_same_order() -> None:
     second = planner.create_plan(analysis)
 
     assert first == second
+
+
+def test_tests_goal_excludes_demo_commands_and_requires_test_milestone() -> None:
+    analysis = _analysis(
+        install_commands=["python -m pip install ."],
+        run_commands=["python demo.py"],
+        test_commands=["python -m pytest"],
+    )
+
+    plan = ReproductionPlanner().create_plan(analysis, goal="tests")
+
+    assert [step.action_type for step in plan.steps] == [
+        PlanActionType.INSTALL_DEPENDENCY,
+        PlanActionType.RUN_TESTS,
+    ]
+    assert plan.goal == "tests"
+    assert plan.requested_goal == "tests"
+    assert plan.required_milestones == ["tests"]
+
+
+def test_demo_goal_without_demo_command_creates_unavailable_milestone() -> None:
+    plan = ReproductionPlanner().create_plan(
+        _analysis(install_commands=["python -m pip install ."]), goal="demo"
+    )
+
+    assert plan.steps[-1].action_type is PlanActionType.RUN_DEMO
+    assert plan.steps[-1].command is None
+    assert plan.required_milestones == ["demo"]
+
+
+def test_plan_retains_command_provenance_and_source() -> None:
+    command = "python -m pytest"
+    analysis = _analysis(
+        test_commands=[command],
+        evidence=[
+            _evidence(
+                "test_command",
+                command,
+                EvidenceProvenance.DOCUMENTED,
+                "README.md",
+            )
+        ],
+    )
+
+    plan = ReproductionPlanner().create_plan(analysis, goal="tests")
+
+    assert plan.steps[0].provenance is PlanProvenance.DOCUMENTED
+    assert plan.steps[0].source_path == "README.md"

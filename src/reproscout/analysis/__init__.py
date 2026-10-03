@@ -7,6 +7,7 @@ from .models import (
     AnalysisInference,
     EvidenceProvenance,
     RepositoryAnalysis,
+    ResolvedEnvironment,
 )
 
 __all__ = [
@@ -18,5 +19,6 @@ __all__ = [
     "RepositoryAnalysis",
     "RepositoryAnalysisError",
     "RepositoryAnalyzer",
+    "ResolvedEnvironment",
     "collect_context_documents",
 ]

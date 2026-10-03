@@ -13,7 +13,11 @@ from pathlib import Path, PurePosixPath, PureWindowsPath
 from pydantic import Field
 
 from reproscout.diagnostics.models import DiagnosticModel
-from reproscout.security import redact_sensitive_text
+from reproscout.security import (
+    BoundedReadError,
+    read_bounded_workspace_file,
+    redact_sensitive_text,
+)
 
 from .models import RepairAction, RepairActionType
 from .plan import RepairNotExecutableError
@@ -282,18 +286,20 @@ class WorkspaceEditor:
         return normalized, target
 
     def _read_existing(self, normalized: str, target: Path) -> bytes:
-        if not target.exists() or not target.is_file():
-            raise WorkspaceEditError(f"Workspace file does not exist: {normalized}")
         try:
-            content = target.read_bytes()
-        except OSError as exc:
+            content = read_bounded_workspace_file(
+                self.root,
+                normalized,
+                max_bytes=self.limits.max_file_bytes,
+            )
+        except BoundedReadError as exc:
+            if "exceeds the read limit" in str(exc):
+                raise WorkspaceEditError(
+                    "Workspace file exceeds the configured size limit."
+                ) from exc
             raise WorkspaceEditError(
                 f"Could not read workspace file: {normalized}"
             ) from exc
-        if len(content) > self.limits.max_file_bytes:
-            raise WorkspaceEditError(
-                "Workspace file exceeds the configured size limit."
-            )
         return content
 
     def _apply_bytes(
@@ -455,6 +461,10 @@ class WorkspaceEditor:
     @staticmethod
     def _atomic_write(target: Path, content: bytes) -> None:
         target.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            original_mode = target.stat().st_mode & 0o777 if target.exists() else None
+        except OSError as exc:
+            raise WorkspaceEditError("Could not inspect workspace file mode.") from exc
         temporary: str | None = None
         try:
             with tempfile.NamedTemporaryFile(
@@ -468,6 +478,8 @@ class WorkspaceEditor:
                 stream.write(content)
                 stream.flush()
                 os.fsync(stream.fileno())
+            if original_mode is not None:
+                os.chmod(temporary, original_mode)
             os.replace(temporary, target)
         except OSError as exc:
             raise WorkspaceEditError(

@@ -2,9 +2,8 @@
 
 from __future__ import annotations
 
-import os
-import shutil
 import uuid
+from collections.abc import Callable
 from pathlib import Path
 
 from reproscout.diagnostics import contract_from_plan
@@ -12,6 +11,7 @@ from reproscout.execution import PlanExecutionEngine
 from reproscout.planning import ReproductionPlan
 from reproscout.planning.safety import PlanSafetyError, validate_command
 from reproscout.repair import WorkspaceEditor
+from reproscout.repo.clone import CloneResult, clone_repository_at_commit
 from reproscout.security import redact_sensitive_text
 from reproscout.state import RunStore, Stage
 from reproscout.status import compute_reproduction_status
@@ -44,8 +44,13 @@ def recipe_from_plan(
         patches_diff = None
     if patches_diff is not None and len(patches_diff) > 1_000_000:
         raise CleanRoomError("Clean-room patch exceeds its configured bound.")
+    if plan.repository_url is None:
+        raise CleanRoomError(
+            "A clean-room recipe requires the repository URL used for the pinned clone."
+        )
     return CleanRoomRecipe(
         repository=plan.repository,
+        repository_url=plan.repository_url,
         commit_sha=plan.commit_sha,
         goal=plan.goal,
         plan=plan,
@@ -54,8 +59,11 @@ def recipe_from_plan(
     )
 
 
+CloneAtCommitFunction = Callable[[str, Path, str], CloneResult]
+
+
 class CleanRoomRunner:
-    """Run a recipe in a newly copied workspace and newly created sandbox."""
+    """Run a recipe from a fresh pinned clone and a newly created sandbox."""
 
     def __init__(
         self,
@@ -63,10 +71,12 @@ class CleanRoomRunner:
         execution: PlanExecutionEngine,
         *,
         limits: CleanRoomLimits | None = None,
+        clone_fn: CloneAtCommitFunction = clone_repository_at_commit,
     ) -> None:
         self.store = store
         self.execution = execution
         self.limits = limits or CleanRoomLimits()
+        self.clone_fn = clone_fn
 
     def run(
         self,
@@ -75,18 +85,26 @@ class CleanRoomRunner:
         source_workspace: Path,
         run_directory: Path,
     ) -> CleanRoomResult:
-        source = Path(source_workspace).expanduser()
-        if source.is_symlink() or not source.is_dir():
-            raise CleanRoomError(
-                "Clean-room source workspace must be a real directory."
-            )
+        del source_workspace
         root = Path(run_directory).expanduser().resolve()
         root.mkdir(parents=True, exist_ok=True)
         clean_run_id = f"clean-room-{uuid.uuid4().hex}"
         clean_run_directory = root / clean_run_id
         clean_workspace = clean_run_directory / "workspace"
         clean_workspace.mkdir(parents=True)
-        self._copy_workspace(source.resolve(), clean_workspace)
+        try:
+            clone = self.clone_fn(
+                recipe.repository_url,
+                clean_workspace / "repository",
+                recipe.commit_sha,
+            )
+        except Exception as exc:
+            raise CleanRoomError(
+                "Could not create a fresh clone at the pinned commit."
+            ) from exc
+        if clone.commit_sha.lower() != recipe.commit_sha.lower():
+            raise CleanRoomError("Fresh clean-room clone has the wrong commit.")
+        clean_workspace = clone.workspace_path.resolve()
         if recipe.patches_diff is not None:
             editor = WorkspaceEditor(
                 clean_workspace,
@@ -162,57 +180,11 @@ class CleanRoomRunner:
             "# Clean-room reproduction\n\n"
             f"Repository: `{recipe.repository}`\n\n"
             f"Commit: `{recipe.commit_sha}`\n\n"
-            "This recipe was applied in a newly copied workspace and a newly "
-            "created Docker sandbox.\n\n"
+            "This recipe was applied in a fresh pinned clone and a newly created "
+            "Docker sandbox.\n\n"
             "## Commands\n\n"
             + "\n".join(f"- `{command}`" for command in commands)
             + "\n",
             encoding="utf-8",
             newline="\n",
         )
-
-    def _copy_workspace(self, source: Path, destination: Path) -> None:
-        file_count = 0
-        total_bytes = 0
-        for current, directories, files in os.walk(
-            source, topdown=True, followlinks=False
-        ):
-            current_path = Path(current)
-            for directory in directories:
-                if (current_path / directory).is_symlink():
-                    raise CleanRoomError(
-                        "Symlinked workspace directories are not copied."
-                    )
-            relative_dir = current_path.relative_to(source)
-            target_dir = destination / relative_dir
-            target_dir.mkdir(parents=True, exist_ok=True)
-            for filename in files:
-                source_file = current_path / filename
-                if source_file.is_symlink() or not source_file.is_file():
-                    raise CleanRoomError(
-                        "Symlinked or non-regular workspace files are not copied."
-                    )
-                try:
-                    size = source_file.stat().st_size
-                except OSError as exc:
-                    raise CleanRoomError(
-                        "Could not inspect a source workspace file."
-                    ) from exc
-                file_count += 1
-                total_bytes += size
-                if file_count > self.limits.max_files:
-                    raise CleanRoomError(
-                        "Source workspace exceeds the clean-room file limit."
-                    )
-                if total_bytes > self.limits.max_bytes:
-                    raise CleanRoomError(
-                        "Source workspace exceeds the clean-room byte limit."
-                    )
-                target = destination / source_file.relative_to(source)
-                target.parent.mkdir(parents=True, exist_ok=True)
-                try:
-                    shutil.copyfile(source_file, target)
-                except OSError as exc:
-                    raise CleanRoomError(
-                        "Could not copy source workspace file."
-                    ) from exc

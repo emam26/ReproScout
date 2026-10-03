@@ -8,9 +8,10 @@ from pydantic import Field
 
 from reproscout.diagnosis import DiagnosisResult
 from reproscout.diagnostics.models import DiagnosticModel, FailureClass
+from reproscout.planning import PlanActionType, PlanProvenance
 from reproscout.repair import RepairExperimentResult
 from reproscout.status import ReproductionStatusResult
-from reproscout.verification import VerificationResult
+from reproscout.verification import GoalCoverage, VerificationResult
 
 
 class ReportAttemptSource(StrEnum):
@@ -37,6 +38,18 @@ class ReportFailure(DiagnosticModel):
     evidence_refs: list[str] = Field(default_factory=list, max_length=50)
 
 
+class ReportPlanStep(DiagnosticModel):
+    """Small, report-facing view of one planned action and its provenance."""
+
+    step_id: str = Field(pattern=r"^step-[0-9]{3}$")
+    action_type: PlanActionType
+    command: str | None = Field(default=None, max_length=2_000)
+    provenance: PlanProvenance
+    source_path: str | None = Field(default=None, max_length=500)
+    source_location: str | None = Field(default=None, max_length=200)
+    attempt_number: int = Field(default=1, ge=1)
+
+
 class RunReport(DiagnosticModel):
     """Schema-versioned report source data; no final status is inferred here."""
 
@@ -46,6 +59,7 @@ class RunReport(DiagnosticModel):
     commit_sha: str = Field(min_length=1, max_length=200)
     goal: str = Field(min_length=1, max_length=500)
     documented_setup: list[str] = Field(default_factory=list, max_length=100)
+    plan_steps: list[ReportPlanStep] = Field(default_factory=list, max_length=100)
     initial_attempt: ReportAttempt
     agent_assisted_attempts: list[ReportAttempt] = Field(
         default_factory=list, max_length=100
@@ -54,6 +68,7 @@ class RunReport(DiagnosticModel):
     diagnoses: list[DiagnosisResult] = Field(default_factory=list, max_length=50)
     repairs: list[RepairExperimentResult] = Field(default_factory=list, max_length=50)
     verification: VerificationResult | None = None
+    goal_coverage: GoalCoverage | None = None
     final_status: ReproductionStatusResult | None = None
     blockers: list[str] = Field(default_factory=list, max_length=100)
     documentation_gaps: list[str] = Field(default_factory=list, max_length=100)

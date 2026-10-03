@@ -7,6 +7,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 from reproscout.repo import RepositoryManifest
+from reproscout.security import BoundedReadError, read_bounded_workspace_file
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,18 +93,13 @@ def collect_context_documents(
             or ".git" in lowered_parts
         ):
             continue
-        path = (root / relative_path).resolve()
         try:
-            path.relative_to(root)
-        except ValueError:
-            continue
-        if path.is_symlink() or not path.is_file():
-            continue
-        try:
-            if path.stat().st_size > policy.max_file_bytes:
-                continue
-            raw = path.read_bytes()
-        except OSError:
+            raw = read_bounded_workspace_file(
+                root,
+                relative_path.as_posix(),
+                max_bytes=policy.max_file_bytes,
+            )
+        except BoundedReadError:
             continue
         if b"\x00" in raw:
             continue

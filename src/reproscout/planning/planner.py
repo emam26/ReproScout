@@ -15,6 +15,7 @@ from .models import (
     PlanActionType,
     PlanBaseline,
     PlannerLimits,
+    PlanProvenance,
     PlanStep,
     ReproductionPlan,
     RiskLevel,
@@ -43,6 +44,36 @@ class _ProposedStep:
     evidence: tuple[AnalysisEvidence, ...]
     network_required: bool = False
     risk: RiskLevel = RiskLevel.LOW
+
+
+def _effective_goal(analysis: RepositoryAnalysis, requested_goal: str) -> str:
+    normalized = requested_goal.strip().lower()
+    return normalized
+
+
+def _required_milestones(goal: str) -> list[str]:
+    return {
+        "install": ["install"],
+        "tests": ["tests"],
+        "demo": ["demo"],
+        "auto": [],
+    }.get(goal, [])
+
+
+def _provenance(evidence: tuple[AnalysisEvidence, ...]) -> PlanProvenance:
+    if not evidence:
+        return PlanProvenance.TOOL_GENERATED
+    if evidence[0].provenance is EvidenceProvenance.DOCUMENTED:
+        return PlanProvenance.DOCUMENTED
+    if evidence[0].provenance is EvidenceProvenance.LLM_INFERRED:
+        return PlanProvenance.INFERRED
+    return PlanProvenance.TOOL_GENERATED
+
+
+def _source(evidence: tuple[AnalysisEvidence, ...]) -> tuple[str | None, str | None]:
+    if not evidence:
+        return None, None
+    return evidence[0].source_path, evidence[0].source_location
 
 
 def _source_priority(evidence: AnalysisEvidence) -> tuple[int, int, str]:
@@ -118,6 +149,7 @@ class ReproductionPlanner:
         *,
         goal: str = "auto",
     ) -> ReproductionPlan:
+        effective_goal = _effective_goal(analysis, goal)
         proposed: list[_ProposedStep] = []
         if analysis.gpu_required:
             proposed.append(
@@ -134,6 +166,26 @@ class ReproductionPlanner:
                     risk=RiskLevel.HIGH,
                 )
             )
+        unresolved_environment = (
+            analysis.resolved_environment.unresolved_requirements
+            if analysis.resolved_environment is not None
+            else []
+        )
+        if unresolved_environment and not analysis.gpu_required:
+            proposed.append(
+                _ProposedStep(
+                    action_type=PlanActionType.PREPARE_ENVIRONMENT,
+                    command=None,
+                    purpose="Resolve unsupported or conflicting environment requirements before execution.",
+                    expected_outcome="All environment requirements are supported and resolved.",
+                    evidence=(
+                        tuple(analysis.resolved_environment.evidence)
+                        if analysis.resolved_environment is not None
+                        else ()
+                    ),
+                    risk=RiskLevel.HIGH,
+                )
+            )
         for asset in analysis.external_assets:
             proposed.append(
                 _ProposedStep(
@@ -146,11 +198,14 @@ class ReproductionPlanner:
                     risk=RiskLevel.MEDIUM,
                 )
             )
-        for command in _ordered_values(
-            analysis,
-            "install_command",
-            analysis.install_commands,
-        ):
+        install_commands = _ordered_values(
+            analysis, "install_command", analysis.install_commands
+        )
+        if effective_goal in {"auto", "install", "tests", "demo"}:
+            selected_install_commands = install_commands
+        else:
+            selected_install_commands = []
+        for command in selected_install_commands:
             proposed.append(
                 _ProposedStep(
                     action_type=PlanActionType.INSTALL_DEPENDENCY,
@@ -162,11 +217,11 @@ class ReproductionPlanner:
                     risk=RiskLevel.MEDIUM,
                 )
             )
-        for command in _ordered_values(
-            analysis,
-            "run_command",
-            analysis.run_commands,
-        ):
+        run_commands = _ordered_values(analysis, "run_command", analysis.run_commands)
+        selected_run_commands = (
+            run_commands if effective_goal in {"auto", "demo"} else []
+        )
+        for command in selected_run_commands:
             proposed.append(
                 _ProposedStep(
                     action_type=PlanActionType.RUN_DEMO,
@@ -177,7 +232,11 @@ class ReproductionPlanner:
                     network_required=analysis.network_required,
                 )
             )
-        if not analysis.run_commands and analysis.entrypoints:
+        if (
+            effective_goal in {"auto", "demo"}
+            and not run_commands
+            and analysis.entrypoints
+        ):
             entrypoint = analysis.entrypoints[0]
             command = entrypoint.split(" = ", 1)[0]
             proposed.append(
@@ -190,11 +249,13 @@ class ReproductionPlanner:
                     network_required=analysis.network_required,
                 )
             )
-        for command in _ordered_values(
-            analysis,
-            "test_command",
-            analysis.test_commands,
-        ):
+        test_commands = _ordered_values(
+            analysis, "test_command", analysis.test_commands
+        )
+        selected_test_commands = (
+            test_commands if effective_goal in {"auto", "tests"} else []
+        )
+        for command in selected_test_commands:
             proposed.append(
                 _ProposedStep(
                     action_type=PlanActionType.RUN_TESTS,
@@ -204,7 +265,44 @@ class ReproductionPlanner:
                     evidence=_evidence_for(analysis, "test_command", command),
                 )
             )
-        if not any(step.command for step in proposed):
+        if effective_goal == "install" and not selected_install_commands:
+            proposed.append(
+                _ProposedStep(
+                    action_type=PlanActionType.INSTALL_DEPENDENCY,
+                    command=None,
+                    purpose="No supported installation command was detected.",
+                    expected_outcome="A supported installation procedure is available.",
+                    evidence=(),
+                    risk=RiskLevel.MEDIUM,
+                )
+            )
+        elif effective_goal == "tests" and not selected_test_commands:
+            proposed.append(
+                _ProposedStep(
+                    action_type=PlanActionType.RUN_TESTS,
+                    command=None,
+                    purpose="No test command was detected for the requested tests goal.",
+                    expected_outcome="A project test command is executed and passes.",
+                    evidence=(),
+                    risk=RiskLevel.MEDIUM,
+                )
+            )
+        elif (
+            effective_goal == "demo"
+            and not selected_run_commands
+            and not analysis.entrypoints
+        ):
+            proposed.append(
+                _ProposedStep(
+                    action_type=PlanActionType.RUN_DEMO,
+                    command=None,
+                    purpose="No demo command or entrypoint was detected for the requested demo goal.",
+                    expected_outcome="A documented demo command is executed successfully.",
+                    evidence=(),
+                    risk=RiskLevel.MEDIUM,
+                )
+            )
+        elif effective_goal == "auto" and not any(step.command for step in proposed):
             proposed.append(
                 _ProposedStep(
                     action_type=PlanActionType.VERIFY_BASIC_EXECUTION,
@@ -242,6 +340,9 @@ class ReproductionPlanner:
                     network_required=proposal.network_required,
                     expected_outcome=proposal.expected_outcome,
                     risk=proposal.risk,
+                    provenance=_provenance(proposal.evidence),
+                    source_path=_source(proposal.evidence)[0],
+                    source_location=_source(proposal.evidence)[1],
                 )
             )
         total_budget = sum(step.timeout_seconds for step in steps)
@@ -251,9 +352,13 @@ class ReproductionPlanner:
             )
         return ReproductionPlan(
             repository=analysis.repository,
+            repository_url=analysis.repository_url,
             commit_sha=analysis.commit_sha,
-            goal=goal,
+            goal=effective_goal,
+            requested_goal=goal,
             baseline=_baseline(analysis),
             steps=steps,
+            required_milestones=_required_milestones(effective_goal),
             overall_timeout_seconds=self.limits.overall_timeout_seconds,
+            resolved_environment=analysis.resolved_environment,
         )

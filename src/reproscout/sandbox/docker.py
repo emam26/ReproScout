@@ -7,6 +7,7 @@ import re
 import shlex
 import shutil
 import subprocess
+import threading
 import time
 from collections.abc import Sequence
 from pathlib import Path
@@ -34,6 +35,8 @@ class DockerAvailability(BaseModel):
 
 
 _SAFE_RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
+_DOCKER_OUTPUT_LIMIT_BYTES = 1_000_000
+_INTERNAL_VENV = Path(".reproscout") / "venv"
 
 
 def resolve_docker_command(
@@ -73,15 +76,56 @@ def _run_docker_command(
 ) -> subprocess.CompletedProcess[str]:
     """Run Docker without a shell and preserve command output."""
 
+    process: subprocess.Popen[bytes] | None = None
+    buffers: dict[str, bytearray] = {"stdout": bytearray(), "stderr": bytearray()}
+
+    def drain(name: str, stream: object) -> None:
+        reader = stream
+        while True:
+            chunk = reader.read(64 * 1024)  # type: ignore[union-attr]
+            if not chunk:
+                return
+            buffer = buffers[name]
+            remaining = _DOCKER_OUTPUT_LIMIT_BYTES - len(buffer)
+            if remaining > 0:
+                buffer.extend(chunk[:remaining])
+
     try:
-        return subprocess.run(
+        process = subprocess.Popen(
             [*command, *args],
-            capture_output=True,
-            check=False,
-            text=True,
-            timeout=timeout_seconds,
-            encoding="utf-8",
-            errors="replace",
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        threads = [
+            threading.Thread(
+                target=drain,
+                args=(name, getattr(process, name)),
+                daemon=True,
+            )
+            for name in ("stdout", "stderr")
+        ]
+        for thread in threads:
+            thread.start()
+        try:
+            return_code = process.wait(timeout=timeout_seconds)
+        except subprocess.TimeoutExpired as exc:
+            process.kill()
+            process.wait()
+            for thread in threads:
+                thread.join(timeout=2)
+            raise subprocess.TimeoutExpired(
+                [*command, *args],
+                timeout_seconds,
+                output=bytes(buffers["stdout"]),
+                stderr=bytes(buffers["stderr"]),
+            ) from exc
+        for thread in threads:
+            thread.join(timeout=2)
+        return subprocess.CompletedProcess(
+            [*command, *args],
+            return_code,
+            stdout=bytes(buffers["stdout"]).decode("utf-8", errors="replace"),
+            stderr=bytes(buffers["stderr"]).decode("utf-8", errors="replace"),
         )
     except FileNotFoundError as exc:
         raise DockerCliUnavailableError(
@@ -180,12 +224,14 @@ class DockerSandbox(Sandbox):
             "/tmp:rw,nosuid,nodev,size=64m",
             "--mount",
             (f"type=bind,source={self._docker_workspace_path()},target=/workspace"),
+            "--env",
+            "PATH=/workspace/.reproscout/venv/bin:/usr/local/bin:/usr/local/sbin:/usr/bin:/sbin:/bin",
             "--workdir",
             "/workspace",
             self.config.image,
-            "python",
+            "sh",
             "-c",
-            "import time; time.sleep(31536000)",
+            "python -m venv --copies /workspace/.reproscout/venv && sleep 31536000",
         ]
         return args
 
@@ -246,6 +292,34 @@ class DockerSandbox(Sandbox):
                 if total_bytes > self.config.resource_limits.max_workspace_bytes:
                     raise SandboxSecurityError("Workspace exceeds the byte-size limit.")
 
+    def _workspace_usage(self) -> tuple[int, int]:
+        workspace = self.config.workspace_path.resolve()
+        file_count = 0
+        total_bytes = 0
+        for current, directories, files in os.walk(
+            workspace,
+            topdown=True,
+            followlinks=False,
+        ):
+            current_path = Path(current)
+            directories[:] = [
+                directory
+                for directory in directories
+                if not (current_path / directory).is_symlink()
+            ]
+            for filename in files:
+                path = current_path / filename
+                if path.is_symlink():
+                    continue
+                try:
+                    total_bytes += path.stat().st_size
+                except OSError as exc:
+                    raise SandboxSecurityError(
+                        "Workspace usage could not be measured safely."
+                    ) from exc
+                file_count += 1
+        return file_count, total_bytes
+
     def _invoke(
         self,
         args: Sequence[str],
@@ -294,6 +368,32 @@ class DockerSandbox(Sandbox):
             self._remove_by_name()
             raise DockerCommandError("Docker returned no container ID after creation.")
         self.container_id = container_id
+        deadline = time.monotonic() + min(
+            self.config.resource_limits.create_timeout_seconds,
+            30.0,
+        )
+        while time.monotonic() < deadline:
+            try:
+                ready = self._invoke(
+                    [
+                        "exec",
+                        self.container_id,
+                        "test",
+                        "-x",
+                        "/workspace/.reproscout/venv/bin/python",
+                    ],
+                    timeout_seconds=5,
+                )
+            except subprocess.TimeoutExpired:
+                continue
+            if ready.returncode == 0:
+                return
+            time.sleep(0.1)
+        self._remove_by_name()
+        self.container_id = None
+        raise DockerCommandError(
+            "Docker sandbox Python environment did not become ready."
+        )
 
     def execute(
         self,
@@ -343,6 +443,33 @@ class DockerSandbox(Sandbox):
                 timed_out=True,
                 container_id=container_id,
                 cleanup_error=cleanup_error,
+            )
+
+        try:
+            file_count, total_bytes = self._workspace_usage()
+        except SandboxSecurityError as exc:
+            return ExecutionResult(
+                command=command_text,
+                stdout=result.stdout,
+                stderr=str(exc),
+                exit_code=137,
+                duration=time.monotonic() - started,
+                timed_out=False,
+                container_id=self.container_id,
+            )
+        limits = self.config.resource_limits
+        if (
+            file_count > limits.max_workspace_files
+            or total_bytes > limits.max_workspace_bytes
+        ):
+            return ExecutionResult(
+                command=command_text,
+                stdout=result.stdout,
+                stderr=("Workspace resource limit exceeded after command execution."),
+                exit_code=137,
+                duration=time.monotonic() - started,
+                timed_out=False,
+                container_id=self.container_id,
             )
 
         return ExecutionResult(

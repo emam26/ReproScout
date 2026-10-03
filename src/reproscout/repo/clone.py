@@ -204,3 +204,46 @@ def clone_repository(
         commit_sha=commit_sha,
         branch=branch,
     )
+
+
+def clone_repository_at_commit(
+    repository_url: str,
+    destination: Path,
+    commit_sha: str,
+    *,
+    timeout_seconds: int = 120,
+) -> CloneResult:
+    """Clone a repository and prove that the requested commit is checked out.
+
+    A clean-room run must be based on the pinned source revision, not on the
+    already executed workspace.  Fetching only the requested object keeps this
+    helper bounded while still supporting commits that are not the default
+    branch tip.
+    """
+
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", commit_sha):
+        raise CloneError("Clean-room commit must be a full hexadecimal SHA-1.")
+    result = clone_repository(
+        repository_url,
+        destination,
+        timeout_seconds=timeout_seconds,
+    )
+    if result.commit_sha.lower() != commit_sha.lower():
+        _run_git(
+            ["fetch", "--no-tags", "origin", commit_sha],
+            cwd=destination,
+            timeout_seconds=timeout_seconds,
+        )
+        _run_git(
+            ["checkout", "--detach", "--quiet", commit_sha],
+            cwd=destination,
+            timeout_seconds=timeout_seconds,
+        )
+    checked_out = _run_git(
+        ["rev-parse", "HEAD"],
+        cwd=destination,
+        timeout_seconds=timeout_seconds,
+    ).stdout.strip()
+    if checked_out.lower() != commit_sha.lower():
+        raise CloneError("Clean-room checkout did not reach the pinned commit.")
+    return result.model_copy(update={"commit_sha": checked_out, "branch": None})

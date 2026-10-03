@@ -7,7 +7,11 @@ from enum import StrEnum
 from pydantic import Field, model_validator
 
 from reproscout.diagnostics.models import DiagnosticModel, FailureClass
-from reproscout.verification import VerificationLevel, VerificationResultStatus
+from reproscout.verification import (
+    GoalCoverage,
+    VerificationLevel,
+    VerificationResultStatus,
+)
 
 
 class ReproductionStatus(StrEnum):
@@ -30,6 +34,7 @@ class StatusReasonCode(StrEnum):
     VERIFICATION_LEVEL_INSUFFICIENT = "VERIFICATION_LEVEL_INSUFFICIENT"
     SAFETY_POLICY_VIOLATION = "SAFETY_POLICY_VIOLATION"
     FAILURE_CLASS = "FAILURE_CLASS"
+    GOAL_NOT_COVERED = "GOAL_NOT_COVERED"
 
 
 class StatusReason(DiagnosticModel):
@@ -52,6 +57,7 @@ class ReproductionStatusResult(DiagnosticModel):
     workflow_succeeded: bool | None = None
     clean_room_required: bool = False
     clean_room_verified: bool | None = None
+    goal_coverage: GoalCoverage | None = None
 
     @model_validator(mode="after")
     def _reason_ids_are_sequential(self) -> ReproductionStatusResult:

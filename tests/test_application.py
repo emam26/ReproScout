@@ -61,6 +61,20 @@ def _service(
             branch="main",
         )
 
+    def cleanroom_clone(url: str, destination: Path, commit_sha: str) -> CloneResult:
+        del url
+        destination.mkdir(parents=True)
+        for relative, contents in files.items():
+            path = destination / relative
+            path.parent.mkdir(parents=True, exist_ok=True)
+            path.write_text(contents, encoding="utf-8")
+        return CloneResult(
+            repository_url="https://github.com/example/fixture",
+            workspace_path=destination,
+            commit_sha=commit_sha,
+            branch=None,
+        )
+
     def execution_factory(store):
         response_set = responses.pop(0)
 
@@ -72,6 +86,7 @@ def _service(
     return AuditService(
         tmp_path / "runs",
         clone_fn=clone,
+        cleanroom_clone_fn=cleanroom_clone,
         execution_factory=execution_factory,
     )
 

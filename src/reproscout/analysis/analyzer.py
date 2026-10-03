@@ -21,6 +21,7 @@ from .models import (
     AnalysisInference,
     EvidenceProvenance,
     RepositoryAnalysis,
+    ResolvedEnvironment,
 )
 
 
@@ -79,8 +80,10 @@ class _AnalysisBuilder:
         )
 
     def build(self, context_files: list[str], confidence: float) -> RepositoryAnalysis:
+        resolved_environment = _resolve_environment(self)
         return RepositoryAnalysis(
             repository=f"{self.manifest.owner}/{self.manifest.repository_name}",
+            repository_url=self.manifest.normalized_url,
             commit_sha=self.manifest.commit_sha,
             project_type=self.project_type,
             python_version_hints=self.python_version_hints,
@@ -99,7 +102,68 @@ class _AnalysisBuilder:
             conflicts=self.conflicts,
             context_files=context_files,
             confidence=confidence,
+            resolved_environment=resolved_environment,
         )
+
+
+def _resolve_environment(builder: _AnalysisBuilder) -> ResolvedEnvironment:
+    """Resolve only the supported v0.1 pip/CPU/Python envelope."""
+
+    unresolved: list[str] = []
+    strategies = {
+        "pip" if builder.package_manager == "pip" else builder.package_manager
+    }
+    if builder.package_manager in {"conda", "poetry", "uv"}:
+        unresolved.append(
+            f"Unsupported automatic environment manager: {builder.package_manager}."
+        )
+    if builder.package_manager is None and builder.dependency_sources:
+        unresolved.append(
+            "Dependency source was detected without a supported installer."
+        )
+    exact_versions = {
+        match.group(1)
+        for hint in builder.python_version_hints
+        if (
+            match := re.fullmatch(r"(?:==)?(\d+\.\d+(?:\.\d+)?)", hint.replace(" ", ""))
+        )
+    }
+    python_version = min(exact_versions) if len(exact_versions) == 1 else None
+    if len(exact_versions) > 1:
+        unresolved.append("Repository evidence specifies conflicting Python versions.")
+    if builder.gpu_required:
+        unresolved.append("GPU/CUDA execution is outside the supported CPU envelope.")
+    base_image = (
+        f"python:{python_version}-slim" if python_version else "python:3.11-slim"
+    )
+    if any(
+        source.lower().endswith(("environment.yml", "environment.yaml"))
+        for source in builder.dependency_sources
+    ):
+        unresolved.append(
+            "Conda environment files are detected but not automatically executed."
+        )
+    network_requirement = "required" if builder.network_required else "none"
+    return ResolvedEnvironment(
+        python_version=python_version,
+        base_image=base_image,
+        dependency_sources=list(builder.dependency_sources),
+        install_strategy=next(iter(strategies - {None}), None),
+        network_requirement=network_requirement,
+        gpu_requirement=builder.gpu_required,
+        unresolved_requirements=unresolved,
+        evidence=[
+            item
+            for item in builder.evidence
+            if item.category
+            in {
+                "python_version",
+                "install_command",
+                "container_base_image",
+                "gpu_requirement",
+            }
+        ],
+    )
 
 
 _PYTHON_HINT = re.compile(

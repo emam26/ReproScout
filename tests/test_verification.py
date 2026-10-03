@@ -17,6 +17,7 @@ from reproscout.execution import (
     StepExecutionResult,
 )
 from reproscout.verification import (
+    GoalMilestoneStatus,
     ObjectiveVerificationEngine,
     VerificationCheckStatus,
     VerificationLevel,
@@ -256,3 +257,80 @@ def test_verifier_distinguishes_unavailable_and_unspecified_and_blocks_escape(
     )
     escaped = ObjectiveVerificationEngine().verify(escape_contract, workspace=tmp_path)
     assert escaped.status is VerificationResultStatus.UNAVAILABLE
+
+
+def test_verifier_does_not_use_unrelated_command_evidence() -> None:
+    contract = VerificationContract(
+        goal="Run the selected test.",
+        targets=[
+            VerificationTarget(
+                target_id="verify-001",
+                step_id="step-002",
+                target_type=VerificationTargetType.TESTS_EXECUTE,
+                description="The selected test command passes.",
+                command="python -m pytest selected.py",
+            )
+        ],
+    )
+
+    result = ObjectiveVerificationEngine().verify(
+        contract,
+        execution=_execution([_step("step-001", "python -m pytest other.py")]),
+    )
+
+    assert result.status is VerificationResultStatus.UNAVAILABLE
+    assert result.checks[0].milestone_status is GoalMilestoneStatus.NOT_EXECUTED
+
+
+def test_verifier_rejects_mismatched_attempt_evidence() -> None:
+    contract = VerificationContract(
+        goal="Run the second attempt.",
+        targets=[
+            VerificationTarget(
+                target_id="verify-001",
+                step_id="step-001",
+                attempt_number=2,
+                target_type=VerificationTargetType.COMMAND_EXITS_SUCCESSFULLY,
+                description="The second attempt passes.",
+                command="python app.py",
+            )
+        ],
+    )
+
+    result = ObjectiveVerificationEngine().verify(
+        contract,
+        execution=_execution([_step("step-001", "python app.py")]),
+    )
+
+    assert result.status is VerificationResultStatus.UNAVAILABLE
+
+
+def test_tests_goal_with_only_install_evidence_cannot_be_reproduced() -> None:
+    contract = VerificationContract(
+        goal="tests",
+        required_milestones=["tests"],
+        targets=[
+            VerificationTarget(
+                target_id="verify-001",
+                target_type=VerificationTargetType.INSTALLATION_SUCCEEDS,
+                description="Installation succeeds.",
+                command="python -m pip install .",
+                milestone="install",
+            ),
+            VerificationTarget(
+                target_id="verify-002",
+                target_type=VerificationTargetType.GOAL_MILESTONE,
+                milestone="tests",
+                description="Tests execute.",
+            ),
+        ],
+    )
+
+    result = ObjectiveVerificationEngine().verify(
+        contract,
+        execution=_execution([_step("step-001", "python -m pip install .")]),
+    )
+
+    assert result.goal_coverage is not None
+    assert result.goal_coverage.coverage_status == "NOT_STARTED"
+    assert result.goal_coverage.unmet_milestones == ["tests"]

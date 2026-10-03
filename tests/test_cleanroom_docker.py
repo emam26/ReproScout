@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import shutil
 from pathlib import Path
 
 import pytest
@@ -12,6 +13,7 @@ from reproscout.planning import (
     PlanStep,
     ReproductionPlan,
 )
+from reproscout.repo.clone import CloneResult
 from reproscout.sandbox import (
     DockerSandbox,
     SandboxConfig,
@@ -33,6 +35,7 @@ def cleanroom_docker_availability():
 def _plan() -> ReproductionPlan:
     return ReproductionPlan(
         repository="fixture/clean-room",
+        repository_url="https://github.com/example/clean-room",
         commit_sha="d" * 40,
         goal="Reproduce the clean-room fixture.",
         baseline=PlanBaseline.OFFICIAL_DOCUMENTATION,
@@ -55,6 +58,20 @@ def _factory(availability):
         return DockerSandbox(config, docker_command=availability.command)
 
     return factory
+
+
+def _clone_from_fixture(source: Path):
+    def clone(url: str, destination: Path, commit_sha: str) -> CloneResult:
+        del url
+        shutil.copytree(source, destination)
+        return CloneResult(
+            repository_url="https://github.com/example/clean-room",
+            workspace_path=destination,
+            commit_sha=commit_sha,
+            branch=None,
+        )
+
+    return clone
 
 
 @pytest.mark.docker
@@ -88,6 +105,7 @@ def test_clean_room_reproduces_from_fresh_workspace_and_recipe(
             recipe,
             source_workspace=source,
             run_directory=tmp_path / "runs",
+            clone_fn=_clone_from_fixture(source),
         )
 
     assert result.execution.workflow_succeeded is True
@@ -129,6 +147,7 @@ def test_clean_room_failure_is_not_claimed_as_reproduced(
             recipe,
             source_workspace=source,
             run_directory=tmp_path / "runs",
+            clone_fn=_clone_from_fixture(source),
         )
 
     assert result.execution.workflow_succeeded is False

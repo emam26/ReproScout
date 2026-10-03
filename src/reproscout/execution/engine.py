@@ -8,6 +8,11 @@ from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
+from reproscout.diagnostics import (
+    EnvironmentFingerprint,
+    EnvironmentFingerprintError,
+    collect_environment_fingerprint,
+)
 from reproscout.planning import PlanActionType, PlanStep, ReproductionPlan
 from reproscout.sandbox import DockerSandbox, ExecutionResult, Sandbox, SandboxConfig
 from reproscout.sandbox.base import SandboxError
@@ -133,73 +138,84 @@ class PlanExecutionEngine:
         step_results: list[StepExecutionResult] = []
         failure_kind: ExecutionFailureKind | None = None
         failed_step_id: str | None = None
+        environment_fingerprint: EnvironmentFingerprint | None = None
 
-        command_steps = [step for step in plan.steps if step.command is not None]
-        sandbox: Sandbox | None = None
-        if command_steps:
-            try:
-                sandbox = self.sandbox_factory(
-                    SandboxConfig(
-                        workspace_path=Path(workspace),
-                        run_id=run_id,
-                        network=(
-                            "bridge"
-                            if any(step.network_required for step in command_steps)
-                            else "none"
-                        ),
-                    )
+        for attempt_number, step in enumerate(plan.steps, start=1):
+            if step.command is None:
+                result = self._record_unavailable_prerequisite(
+                    run_id,
+                    step,
+                    attempt_number,
                 )
-                sandbox.create()
-            except SandboxError:
-                failure_kind = ExecutionFailureKind.SANDBOX_FAILURE
-
-        try:
-            if failure_kind is None:
-                for attempt_number, step in enumerate(plan.steps, start=1):
-                    if step.command is None:
-                        result = self._record_unavailable_prerequisite(
+                artifacts.append_step(
+                    result,
+                    setup=step.action_type in _SETUP_ACTIONS,
+                )
+            else:
+                elapsed = time.monotonic() - started_monotonic
+                remaining = plan.overall_timeout_seconds - elapsed
+                if remaining <= 0:
+                    result = self._record_budget_timeout(run_id, step, attempt_number)
+                else:
+                    environment = plan.resolved_environment
+                    sandbox_config = SandboxConfig(
+                        workspace_path=Path(workspace),
+                        run_id=f"{run_id}-{attempt_number}",
+                        image=(
+                            environment.base_image
+                            if environment is not None
+                            else "python:3.11-slim"
+                        ),
+                        network="bridge" if step.network_required else "none",
+                    )
+                    sandbox: Sandbox | None = None
+                    try:
+                        sandbox = self.sandbox_factory(sandbox_config)
+                        sandbox.create()
+                        result = self._execute_step(
+                            sandbox,
                             run_id,
                             step,
                             attempt_number,
+                            timeout_seconds=min(step.timeout_seconds, remaining),
+                            artifacts=artifacts,
                         )
-                    else:
-                        if sandbox is None:
-                            raise AssertionError("Executable plan requires a sandbox.")
-                        elapsed = time.monotonic() - started_monotonic
-                        remaining = plan.overall_timeout_seconds - elapsed
-                        if remaining <= 0:
-                            result = self._record_budget_timeout(
-                                run_id, step, attempt_number
-                            )
-                        else:
-                            result = self._execute_step(
-                                sandbox,
-                                run_id,
-                                step,
-                                attempt_number,
-                                timeout_seconds=min(step.timeout_seconds, remaining),
-                                artifacts=artifacts,
-                            )
-                    if step.command is None:
-                        artifacts.append_step(
-                            result,
-                            setup=step.action_type in _SETUP_ACTIONS,
+                        if isinstance(sandbox, DockerSandbox):
+                            try:
+                                environment_fingerprint = (
+                                    collect_environment_fingerprint(
+                                        sandbox,
+                                        repository_commit_sha=plan.commit_sha,
+                                        config=sandbox_config,
+                                    )
+                                )
+                            except EnvironmentFingerprintError:
+                                environment_fingerprint = None
+                    except SandboxError:
+                        result = self._record_sandbox_failure(
+                            run_id, step, attempt_number
                         )
-                    step_results.append(result)
+                    finally:
+                        if sandbox is not None:
+                            try:
+                                sandbox.destroy()
+                            except SandboxError:
+                                result = result.model_copy(
+                                    update={
+                                        "stderr": (
+                                            result.stderr + "\nSandbox cleanup failed."
+                                        ).strip(),
+                                        "failure_kind": ExecutionFailureKind.SANDBOX_FAILURE,
+                                    }
+                                )
                     if result.failure_kind is not None:
                         failure_kind = result.failure_kind
                         failed_step_id = step.step_id
-                        break
-        finally:
-            if sandbox is not None:
-                try:
-                    sandbox.destroy()
-                except SandboxError:
-                    if failure_kind is None:
-                        failure_kind = ExecutionFailureKind.SANDBOX_FAILURE
-                        failed_step_id = (
-                            step_results[-1].step_id if step_results else None
-                        )
+            step_results.append(result)
+            if result.failure_kind is not None:
+                failure_kind = result.failure_kind
+                failed_step_id = step.step_id
+                break
 
         if not finalize or (failure_kind is not None and allow_repair):
             self.store.transition(run_id, Stage.DEBUG)
@@ -221,6 +237,48 @@ class PlanExecutionEngine:
             started_at=started_at,
             finished_at=finished_at,
             artifacts=artifacts.paths,
+            repository=plan.repository,
+            commit_sha=plan.commit_sha,
+            goal=plan.goal,
+            environment=environment_fingerprint,
+        )
+
+    def _record_sandbox_failure(
+        self,
+        run_id: str,
+        step: PlanStep,
+        attempt_number: int,
+    ) -> StepExecutionResult:
+        timestamp = datetime.now(UTC)
+        self.store.record_attempt(
+            run_id,
+            Attempt.create(
+                "plan_execution",
+                Stage.EXECUTE,
+                {
+                    "action_type": step.action_type.value,
+                    "attempt_number": attempt_number,
+                    "step_id": step.step_id,
+                },
+            ),
+        )
+        return StepExecutionResult(
+            step_id=step.step_id,
+            attempt_number=attempt_number,
+            action_type=step.action_type.value,
+            command=step.command,
+            working_directory=step.working_directory,
+            started_at=timestamp,
+            finished_at=timestamp,
+            duration=0,
+            stdout="",
+            stderr="Sandbox could not be created for this step.",
+            exit_code=None,
+            timed_out=False,
+            failure_kind=ExecutionFailureKind.SANDBOX_FAILURE,
+            provenance=step.provenance.value,
+            source_path=step.source_path,
+            source_location=step.source_location,
         )
 
     def _record_unavailable_prerequisite(
@@ -254,6 +312,9 @@ class PlanExecutionEngine:
             exit_code=None,
             timed_out=False,
             failure_kind=ExecutionFailureKind.PREREQUISITE_UNAVAILABLE,
+            provenance=step.provenance.value,
+            source_path=step.source_path,
+            source_location=step.source_location,
         )
 
     def _record_budget_timeout(
@@ -287,6 +348,9 @@ class PlanExecutionEngine:
             exit_code=124,
             timed_out=True,
             failure_kind=ExecutionFailureKind.TIMEOUT,
+            provenance=step.provenance.value,
+            source_path=step.source_path,
+            source_location=step.source_location,
         )
 
     def _execute_step(
@@ -360,6 +424,9 @@ class PlanExecutionEngine:
                 timed_out=execution.timed_out,
                 container_id=execution.container_id,
                 failure_kind=failure,
+                provenance=step.provenance.value,
+                source_path=step.source_path,
+                source_location=step.source_location,
             )
         except SandboxError:
             finished_at = datetime.now(UTC)
@@ -379,6 +446,9 @@ class PlanExecutionEngine:
                 exit_code=None,
                 timed_out=False,
                 failure_kind=ExecutionFailureKind.SANDBOX_FAILURE,
+                provenance=step.provenance.value,
+                source_path=step.source_path,
+                source_location=step.source_location,
             )
         tool_result = ToolResult.create(
             tool_call.call_id,
