@@ -25,6 +25,8 @@ The dashboard supports:
 * prior-run browsing and bounded five-second polling for active runs,
 * run stage/outcome, verification, timeline, failure/diagnosis/repair counts,
   blockers, and report information,
+* secret-free settings/config status for Docker, the LLM mode, Git, and the
+  configured runs directory,
 * loading the bounded human-readable report as escaped text.
 
 Repository content, logs, and report text are rendered through React text nodes;

@@ -118,6 +118,35 @@ def test_api_health_version_and_openapi(tmp_path: Path) -> None:
     assert client.get("/openapi.json").status_code == 200
 
 
+def test_api_config_reports_secret_free_runtime_status(
+    tmp_path: Path, monkeypatch
+) -> None:
+    service = StubAuditService(tmp_path / "runs")
+    monkeypatch.setattr(
+        "reproscout.api.app.doctor_report",
+        lambda *, runs_dir: {
+            "python": "3.12.0",
+            "platform": "test-platform",
+            "git_available": True,
+            "docker": {"available": False, "error": "daemon unavailable"},
+            "runs_dir": str(runs_dir),
+            "runs_dir_writable": True,
+            "llm_provider": "mock",
+            "llm_configured": True,
+        },
+    )
+    client = TestClient(create_app(service.runs_dir, service=service))
+
+    response = client.get("/api/v1/config")
+
+    assert response.status_code == 200
+    payload = response.json()
+    assert payload["docker"]["available"] is False
+    assert payload["llm_configured"] is True
+    assert payload["runs_dir"] == str(service.runs_dir.resolve())
+    assert "api_key" not in response.text.lower()
+
+
 def test_api_audit_validation_and_core_translation(tmp_path: Path) -> None:
     service = StubAuditService(tmp_path / "runs")
     client = TestClient(create_app(service.runs_dir, service=service))

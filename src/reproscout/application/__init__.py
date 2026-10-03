@@ -7,6 +7,7 @@ from .service import (
     InspectionResult,
     ReproductionResult,
     ServiceError,
+    doctor_report,
 )
 
 __all__ = [
@@ -16,4 +17,5 @@ __all__ = [
     "InspectionResult",
     "ReproductionResult",
     "ServiceError",
+    "doctor_report",
 ]

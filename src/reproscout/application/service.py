@@ -576,7 +576,7 @@ class AuditService:
         (run_directory / "plan.json").write_text(serialized + "\n", encoding="utf-8")
 
 
-def doctor_report() -> dict[str, object]:
+def doctor_report(*, runs_dir: Path | None = None) -> dict[str, object]:
     """Return secret-free local capability checks for the ``doctor`` command."""
 
     settings = get_llm_settings()
@@ -592,15 +592,18 @@ def doctor_report() -> dict[str, object]:
         docker = {"available": True, "server_version": available.server_version}
     except SandboxError as exc:
         docker = {"available": False, "error": redact_sensitive_text(str(exc))[:500]}
-    runs_dir = get_settings().runs_dir.expanduser().resolve()
+    resolved_runs_dir = (runs_dir or get_settings().runs_dir).expanduser().resolve()
     return {
         "python": platform.python_version(),
         "platform": platform.platform(),
         "git_available": shutil.which("git") is not None,
         "docker": docker,
-        "runs_dir": str(runs_dir),
+        "runs_dir": str(resolved_runs_dir),
         "runs_dir_writable": os.access(
-            runs_dir if runs_dir.exists() else runs_dir.parent, os.W_OK
+            resolved_runs_dir
+            if resolved_runs_dir.exists()
+            else resolved_runs_dir.parent,
+            os.W_OK,
         ),
         "llm_provider": provider,
         "llm_configured": configured,

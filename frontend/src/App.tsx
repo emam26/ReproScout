@@ -3,6 +3,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import {
   ApiError,
   getEvents,
+  getConfig,
   getReport,
   getRun,
   isTerminalStage,
@@ -10,13 +11,20 @@ import {
   startAudit,
   statusTone,
 } from "./api";
-import type { EventRecord, ReportResponse, RunDetail, RunSummary } from "./types";
+import type {
+  ConfigStatus,
+  EventRecord,
+  ReportResponse,
+  RunDetail,
+  RunSummary,
+} from "./types";
 import "./styles.css";
 
 const initialForm = { repository_url: "", goal: "auto", no_ai: true };
 
 export default function App() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
+  const [config, setConfig] = useState<ConfigStatus | null>(null);
   const [selected, setSelected] = useState<RunDetail | null>(null);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [report, setReport] = useState<ReportResponse | null>(null);
@@ -49,9 +57,18 @@ export default function App() {
     }
   }, []);
 
+  const refreshConfig = useCallback(async () => {
+    try {
+      setConfig(await getConfig());
+    } catch (reason) {
+      setError(errorMessage(reason));
+    }
+  }, []);
+
   useEffect(() => {
     void refreshRuns();
-  }, [refreshRuns]);
+    void refreshConfig();
+  }, [refreshConfig, refreshRuns]);
 
   useEffect(() => {
     if (!selected || isTerminalStage(selected.stage)) return undefined;
@@ -208,6 +225,28 @@ export default function App() {
         </section>
       </section>
 
+      <section className="panel config-panel">
+        <div className="panel-heading">
+          <div>
+            <p className="eyebrow">SETTINGS / CONFIG</p>
+            <h2>Runtime status</h2>
+          </div>
+          <button className="quiet-button" onClick={() => void refreshConfig()} type="button">
+            Refresh
+          </button>
+        </div>
+        {!config ? (
+          <p className="empty">Loading local capability status…</p>
+        ) : (
+          <div className="config-grid">
+            <ConfigFact label="API / Python" value={`${config.python} · ${config.llm_provider}`} />
+            <ConfigFact label="Docker" value={config.docker.available ? "available" : "unavailable"} ok={config.docker.available} />
+            <ConfigFact label="LLM" value={config.llm_configured ? "configured" : "offline / unconfigured"} ok={config.llm_configured} />
+            <ConfigFact label="Runs directory" value={config.runs_dir_writable ? "writable" : "not writable"} ok={config.runs_dir_writable} />
+          </div>
+        )}
+      </section>
+
       <section className="panel detail-panel">
         <div className="panel-heading">
           <div>
@@ -256,6 +295,10 @@ export default function App() {
 
 function Fact({ label, value }: { label: string; value: string }) {
   return <div className="fact"><span>{label}</span><strong>{value}</strong></div>;
+}
+
+function ConfigFact({ label, value, ok = true }: { label: string; value: string; ok?: boolean }) {
+  return <div className="config-fact"><span>{label}</span><strong className={ok ? "is-ok" : "is-muted"}>{value}</strong></div>;
 }
 
 function EvidenceList({ report }: { report: Record<string, unknown> | null }) {

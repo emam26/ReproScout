@@ -27,12 +27,24 @@ const detail = {
   },
 };
 
+const config = {
+  python: "3.12.0",
+  platform: "test-platform",
+  git_available: true,
+  docker: { available: true, server_version: "27.0", error: null },
+  runs_dir: "runs",
+  runs_dir_writable: true,
+  llm_provider: "mock",
+  llm_configured: true,
+};
+
 describe("dashboard", () => {
   beforeEach(() => {
     vi.stubGlobal(
       "fetch",
       vi.fn((input: RequestInfo | URL) => {
         const url = String(input);
+        if (url.endsWith("/api/v1/config")) return Promise.resolve(jsonResponse(config));
         if (url.endsWith("/api/v1/runs")) return Promise.resolve(jsonResponse(runs));
         if (url.endsWith("/events")) return Promise.resolve(jsonResponse([]));
         if (url.endsWith("/report")) return Promise.resolve(jsonResponse({ run_id: "fixture-run", content: "safe report" }));
@@ -42,9 +54,14 @@ describe("dashboard", () => {
   });
 
   it("shows empty state when the API has no runs", async () => {
-    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(jsonResponse([])));
+    vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
+      const url = String(input);
+      if (url.endsWith("/api/v1/config")) return Promise.resolve(jsonResponse(config));
+      return Promise.resolve(jsonResponse([]));
+    }));
     render(<App />);
     expect(await screen.findByText("No audits yet. Start with a public repository.")).toBeInTheDocument();
+    expect(await screen.findByText("Runtime status")).toBeInTheDocument();
   });
 
   it("loads a reproduced run and renders untrusted report text as text", async () => {
@@ -58,6 +75,7 @@ describe("dashboard", () => {
     const malicious = "<img src=x onerror=alert(1)>";
     vi.stubGlobal("fetch", vi.fn((input: RequestInfo | URL) => {
       const url = String(input);
+      if (url.endsWith("/api/v1/config")) return Promise.resolve(jsonResponse(config));
       if (url.endsWith("/report")) return Promise.resolve(jsonResponse({ run_id: "fixture-run", content: malicious }));
       if (url.endsWith("/events")) return Promise.resolve(jsonResponse([]));
       return Promise.resolve(jsonResponse(detail));

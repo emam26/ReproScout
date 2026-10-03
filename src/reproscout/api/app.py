@@ -18,6 +18,7 @@ from reproscout.application import (
     AuditService,
     ReproductionResult,
     ServiceError,
+    doctor_report,
 )
 from reproscout.config import get_settings
 from reproscout.security import redact_sensitive_text
@@ -32,6 +33,27 @@ class HealthResponse(BaseModel):
 
     status: str
     version: str
+
+
+class DockerStatus(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    available: bool
+    server_version: str | None = None
+    error: str | None = None
+
+
+class ConfigResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    python: str
+    platform: str
+    git_available: bool
+    docker: DockerStatus
+    runs_dir: str
+    runs_dir_writable: bool
+    llm_provider: str
+    llm_configured: bool
 
 
 class RunSummary(BaseModel):
@@ -110,6 +132,12 @@ def create_app(
     @router.get("/version", response_model=HealthResponse)
     def version() -> HealthResponse:
         return HealthResponse(status="ok", version=__version__)
+
+    @router.get("/config", response_model=ConfigResponse)
+    def config() -> ConfigResponse:
+        return ConfigResponse.model_validate(
+            doctor_report(runs_dir=audit_service.runs_dir)
+        )
 
     @router.post(
         "/audits",

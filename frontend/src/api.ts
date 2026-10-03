@@ -1,5 +1,6 @@
 import type {
   AuditResult,
+  ConfigStatus,
   EventRecord,
   ReportResponse,
   RunDetail,
@@ -39,6 +40,10 @@ export async function requestJson<T>(path: string, init?: RequestInit): Promise<
 
 export function listRuns(): Promise<RunSummary[]> {
   return requestJson<RunSummary[]>("/api/v1/runs");
+}
+
+export function getConfig(): Promise<ConfigStatus> {
+  return requestJson<ConfigStatus>("/api/v1/config");
 }
 
 export function getRun(runId: string): Promise<RunDetail> {

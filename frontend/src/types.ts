@@ -38,6 +38,21 @@ export type ReportResponse = {
   content: string;
 };
 
+export type ConfigStatus = {
+  python: string;
+  platform: string;
+  git_available: boolean;
+  docker: {
+    available: boolean;
+    server_version: string | null;
+    error: string | null;
+  };
+  runs_dir: string;
+  runs_dir_writable: boolean;
+  llm_provider: string;
+  llm_configured: boolean;
+};
+
 export type AuditResult = {
   run_id: string;
   repository: string;

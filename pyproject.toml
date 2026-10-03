@@ -56,6 +56,7 @@ pythonpath = ["src"]
 markers = [
     "docker: tests that require a working Docker daemon",
     "integration: integration tests using external system services",
+    "live: explicitly opt-in tests that call a live external provider",
 ]
 
 [tool.ruff]

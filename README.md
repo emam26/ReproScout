@@ -214,6 +214,10 @@ LLM_MODEL=<provider-model>
 GEMINI_API_KEY=<your-key>
 ```
 
+Live Gemini checks are available only through the explicit opt-in path in
+[`docs/LLM_PROVIDERS.md`](docs/LLM_PROVIDERS.md); the normal test suite remains
+offline.
+
 Never commit or paste credentials into repositories, reports, prompts, or issue
 threads. Provider quota and rate limits are controlled by the provider.
 

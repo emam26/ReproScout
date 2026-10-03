@@ -80,7 +80,18 @@ transports to cover provider selection, strict schemas, malformed output,
 missing credentials, error translation, usage metadata, secret protection, and
 retry limits.
 
-Live Gemini and Groq behavior is not exercised unless a user separately
-provides credentials and opts into a future live-test path. Phase 4 does not
-perform repository analysis, planning, autonomous execution, provider failover,
-or final verification.
+Live Gemini behavior has an explicit opt-in test path; normal tests never call
+the network. With a supported model and a credential available in the shell,
+run the bounded smoke and diagnosis checks with:
+
+```bash
+REPROSCOUT_RUN_LIVE_TESTS=1 \
+LLM_PROVIDER=gemini \
+LLM_MODEL=<supported-model> \
+pytest -m live tests/live
+```
+
+The command reads `GEMINI_API_KEY` from the environment but never prints or
+persists it. Groq remains covered by offline transport tests only. Phase 4
+does not perform repository analysis, planning, autonomous execution, provider
+failover, or final verification.

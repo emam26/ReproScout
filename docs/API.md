@@ -19,6 +19,7 @@ Versioned endpoints:
 ```text
 GET  /api/v1/health
 GET  /api/v1/version
+GET  /api/v1/config
 POST /api/v1/audits
 GET  /api/v1/runs
 GET  /api/v1/runs/{run_id}
@@ -32,6 +33,11 @@ provider/model selection, and `no_ai`. It runs the bounded workflow
 synchronously using the existing SQLite state and Docker-only execution
 boundary. The endpoint is intentionally simple for local use; it is not a
 distributed job queue or production worker system.
+
+`GET /api/v1/config` returns secret-free local capability status for the
+dashboard: Python and platform facts, Git availability, Docker availability,
+the configured runs directory and writeability, and the selected LLM provider
+with only a boolean configured flag. It never returns credential values.
 
 `POST /api/v1/runs/{run_id}/reproduce` is backed by the persisted `plan.json`
 and source workspace created by an audit. It replays that plan in a newly copied
