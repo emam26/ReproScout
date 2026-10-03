@@ -1,0 +1,4 @@
+[project]
+name = "evaluation-fixture-006"
+version = "0.1.0"
+dependencies = ["example-package==1.0", "example-package==2.0"]

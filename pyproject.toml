@@ -48,7 +48,7 @@ Issues = "https://github.com/emam26/ReproScout/issues"
 where = ["src"]
 
 [tool.setuptools.package-data]
-"reproscout.evaluation" = ["evaluation_set.json"]
+"reproscout.evaluation" = ["evaluation_set.json", "benchmark_manifest.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

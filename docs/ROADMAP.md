@@ -883,7 +883,46 @@ activities remain not started.
 
 ---
 
+# Phase 23.5 — Live LLM Validation
+
+**Status: PENDING**
+
+Credential-dependent provider validation is deliberately user-run. No API keys
+are stored, printed, or required by the offline test suite.
+
+## Phase 23.6 — Core Trustworthiness Hardening
+
+**Status: INCOMPLETE — implementation landed; Docker/host validation remains pending**
+
+Implemented 23.6A–23.6G: goal-aware planning, fail-closed verification, explicit
+goal coverage, bounded hostile-workspace access and output, pristine pinned
+clean-room replay, resolved-environment execution, and post-verification
+state/report/API consistency. Offline regression tests cover these controls.
+Docker validation remains pending because this environment reports WSL
+`E_ACCESSDENIED` from the Docker daemon.
+
+## Phase 23.7 — Production Evaluation
+
+**Status: INCOMPLETE — controlled fixtures complete; real repositories pending**
+
+Twenty committed evaluation fixture directories are present. Sixteen cases are
+exercised through the production `AuditService` path with exact status,
+verification-level, failure-category, goal-coverage, clean-room, and
+false-`REPRODUCED` assertions. The pinned real-repository benchmark schema and
+runner are ready, but no public repository is configured or executed yet.
+
+## Phase 23.8 — Release Candidate Validation
+
+**Status: INCOMPLETE — local non-Docker checks pass; release gates remain open**
+
+Remaining gates are Docker/integration execution, fresh wheel checks after these
+changes, and inspection of actual GitHub Actions results. No release or
+publication action has started.
+
 # Current Next Action
+
+The historical summary below predates the pre-release phases above; the phase
+statuses in this section are authoritative.
 
 Phase 20–23 acceptance criteria have passed. Phase 24 remains not started.
 

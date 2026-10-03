@@ -1,5 +1,14 @@
 """Versioned evaluation contracts and the offline controlled benchmark set."""
 
+from .benchmark import (
+    BenchmarkGoal,
+    BenchmarkManifest,
+    BenchmarkObservation,
+    BenchmarkReport,
+    BenchmarkRepository,
+    load_benchmark_manifest,
+    run_benchmark,
+)
 from .catalog import EvaluationSetError, load_evaluation_set
 from .experiments import (
     AblationDefinition,
@@ -26,6 +35,11 @@ from .runner import EvaluationError, EvaluationRunner, evaluate_observations
 __all__ = [
     "AblationDefinition",
     "BaselineDefinition",
+    "BenchmarkGoal",
+    "BenchmarkManifest",
+    "BenchmarkObservation",
+    "BenchmarkReport",
+    "BenchmarkRepository",
     "ComparisonError",
     "ComparisonMetric",
     "ComparisonResult",
@@ -47,5 +61,7 @@ __all__ = [
     "compare_evaluation_reports",
     "default_evaluation_protocol",
     "evaluate_observations",
+    "load_benchmark_manifest",
     "load_evaluation_set",
+    "run_benchmark",
 ]
