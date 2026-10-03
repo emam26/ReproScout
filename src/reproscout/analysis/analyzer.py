@@ -131,6 +131,12 @@ def _resolve_environment(builder: _AnalysisBuilder) -> ResolvedEnvironment:
     python_version = min(exact_versions) if len(exact_versions) == 1 else None
     if len(exact_versions) > 1:
         unresolved.append("Repository evidence specifies conflicting Python versions.")
+    if python_version is not None:
+        major, minor = (int(part) for part in python_version.split(".")[:2])
+        if major != 3 or minor not in {9, 10, 11, 12, 13}:
+            unresolved.append(
+                f"Python {python_version} is outside the supported v0.1 runtime envelope."
+            )
     if builder.gpu_required:
         unresolved.append("GPU/CUDA execution is outside the supported CPU envelope.")
     base_image = (
