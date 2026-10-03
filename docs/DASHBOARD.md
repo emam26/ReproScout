@@ -16,8 +16,8 @@ npm run dev
 ```
 
 Vite serves the dashboard on `127.0.0.1:5173` and proxies `/api` to the local
-ReproAgent API on `127.0.0.1:8000`. The production preview uses the same local
-proxy configuration. Start the API separately with `reproagent serve`.
+ReproScout API on `127.0.0.1:8000`. The production preview uses the same local
+proxy configuration. Start the API separately with `reproscout serve`.
 
 The dashboard supports:
 

@@ -5,17 +5,17 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from reproagent.api import create_app
-from reproagent.application import (
+from reproscout.api import create_app
+from reproscout.application import (
     AuditRequest,
     AuditResult,
     ReproductionResult,
     ServiceError,
 )
-from reproagent.diagnostics.models import VerificationTargetType
-from reproagent.state import EventType, SQLiteRunStore, Stage
-from reproagent.status import compute_reproduction_status
-from reproagent.verification import (
+from reproscout.diagnostics.models import VerificationTargetType
+from reproscout.state import EventType, SQLiteRunStore, Stage
+from reproscout.status import compute_reproduction_status
+from reproscout.verification import (
     VerificationCheck,
     VerificationCheckStatus,
     VerificationEvidence,

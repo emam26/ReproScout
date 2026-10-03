@@ -1,6 +1,6 @@
 # LLM Providers
 
-Phase 4 adds a provider-independent reasoning boundary. ReproAgent core code
+Phase 4 adds a provider-independent reasoning boundary. ReproScout core code
 submits an `LLMRequest` to the `LLMProvider` interface and receives a validated
 `LLMResponse` containing an `AgentDecision`. Provider adapters cannot move the
 run state machine, execute tools, or determine whether reproduction succeeded.
@@ -18,7 +18,7 @@ transport, so Phase 4 adds no provider SDK or runtime dependency. There are
 currently no provider-specific optional dependency groups to install. Provider
 SDK extras can be introduced later only if they offer a demonstrated benefit.
 
-Provider and model selection are explicit. ReproAgent does not automatically
+Provider and model selection are explicit. ReproScout does not automatically
 fail over between Gemini and Groq because an unrecorded provider change would
 harm reproducibility and debugging.
 

@@ -3,9 +3,9 @@ requires = ["setuptools>=77"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "reproagent"
+name = "reproscout"
 version = "0.1.0"
-description = "A reproducibility auditor for open-source software."
+description = "Autonomous agent for reproducing, diagnosing, and repairing open-source research projects."
 readme = "README.md"
 license = "MIT"
 license-files = ["LICENSE"]
@@ -38,17 +38,17 @@ dev = [
 ]
 
 [project.scripts]
-reproagent = "reproagent.cli:app"
+reproscout = "reproscout.cli:app"
 
 [project.urls]
-Repository = "https://github.com/emam26/ReproAgent"
-Issues = "https://github.com/emam26/ReproAgent/issues"
+Repository = "https://github.com/emam26/ReproScout"
+Issues = "https://github.com/emam26/ReproScout/issues"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-"reproagent.evaluation" = ["evaluation_set.json"]
+"reproscout.evaluation" = ["evaluation_set.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

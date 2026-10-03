@@ -2,14 +2,14 @@ from __future__ import annotations
 
 import pytest
 
-from reproagent.diagnostics import EvidenceBuilder, FailureClass, normalize_failure
-from reproagent.planning import (
+from reproscout.diagnostics import EvidenceBuilder, FailureClass, normalize_failure
+from reproscout.planning import (
     PlanActionType,
     PlanBaseline,
     PlanStep,
     ReproductionPlan,
 )
-from reproagent.repair import (
+from reproscout.repair import (
     AppliedPlanRepair,
     PlanRepairApplier,
     RepairAction,
@@ -23,8 +23,8 @@ from reproagent.repair import (
     Reversibility,
     validate_repair_action,
 )
-from reproagent.repair.policy import RepairPolicyError
-from reproagent.state import EventType, SQLiteRunStore, Stage
+from reproscout.repair.policy import RepairPolicyError
+from reproscout.state import EventType, SQLiteRunStore, Stage
 
 
 def _context(*, asset_url: str | None = None):

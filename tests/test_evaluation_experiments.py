@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from reproagent.evaluation import (
+from reproscout.evaluation import (
     ComparisonError,
     ComparisonMetric,
     EvaluationObservation,
@@ -13,7 +13,7 @@ from reproagent.evaluation import (
     default_evaluation_protocol,
     load_evaluation_set,
 )
-from reproagent.status import ReproductionStatus
+from reproscout.status import ReproductionStatus
 
 
 def _report(status_override: str | None = None):

@@ -1,4 +1,4 @@
-# ReproAgent Implementation Roadmap
+# ReproScout Implementation Roadmap
 
 ## Working Rule
 
@@ -50,7 +50,7 @@ Create a clean Python repository that can be safely extended phase by phase.
 Expected initial project structure:
 
 ```text
-ReproAgent/
+ReproScout/
 ├── AGENTS.md
 ├── README.md
 ├── pyproject.toml
@@ -62,7 +62,7 @@ ReproAgent/
 │   └── ROADMAP.md
 │
 ├── src/
-│   └── reproagent/
+│   └── reproscout/
 │       ├── __init__.py
 │       ├── cli.py
 │       └── config.py
@@ -82,8 +82,8 @@ Phase 0 is DONE only when:
 * package installs successfully,
 * `pytest` passes,
 * Ruff passes,
-* `reproagent --help` works,
-* `reproagent version` works,
+* `reproscout --help` works,
+* `reproscout version` works,
 * `.env` is ignored,
 * `runs/` generated files are ignored,
 * project documentation exists,
@@ -283,7 +283,7 @@ A mock run can:
 
 ## Goal
 
-Add hosted LLM reasoning without coupling ReproAgent to a vendor.
+Add hosted LLM reasoning without coupling ReproScout to a vendor.
 
 ## Build
 

@@ -1,6 +1,6 @@
 # Security policy
 
-ReproAgent executes untrusted repository workflows. It is designed with Docker
+ReproScout executes untrusted repository workflows. It is designed with Docker
 as defense in depth: target code is not executed on the host, credentials and
 the Docker socket are not mounted, containers are non-privileged with dropped
 capabilities and `no-new-privileges`, workspaces and resources are bounded, and
@@ -14,7 +14,7 @@ is not a hardened multi-tenant service.
 ## Secrets
 
 Provider credentials belong only in environment variables. Never commit `.env`,
-API keys, Git credentials, SSH keys, cookies, or private datasets. ReproAgent
+API keys, Git credentials, SSH keys, cookies, or private datasets. ReproScout
 redacts bounded command/log evidence and rejects sensitive persisted mappings,
 but users should still review run artifacts before sharing them.
 

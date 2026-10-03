@@ -1,1 +1,1 @@
-"""Test package for ReproAgent."""
+"""Test package for ReproScout."""

@@ -5,10 +5,10 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.diagnostics import EvidenceBuilder, normalize_failure
-from reproagent.execution import PlanExecutionEngine
-from reproagent.planning import PlanActionType, PlanBaseline, PlanStep, ReproductionPlan
-from reproagent.repair import (
+from reproscout.diagnostics import EvidenceBuilder, normalize_failure
+from reproscout.execution import PlanExecutionEngine
+from reproscout.planning import PlanActionType, PlanBaseline, PlanStep, ReproductionPlan
+from reproscout.repair import (
     ControlledRepairPipeline,
     RepairAction,
     RepairActionType,
@@ -19,8 +19,8 @@ from reproagent.repair import (
     WorkspaceEditLimits,
     WorkspaceEditor,
 )
-from reproagent.sandbox import ExecutionResult, Sandbox, SandboxConfig
-from reproagent.state import RunOutcome, SQLiteRunStore, Stage
+from reproscout.sandbox import ExecutionResult, Sandbox, SandboxConfig
+from reproscout.state import RunOutcome, SQLiteRunStore, Stage
 
 
 def _patch(old: str, new: str) -> str:

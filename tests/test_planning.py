@@ -2,12 +2,12 @@ from __future__ import annotations
 
 import pytest
 
-from reproagent.analysis import (
+from reproscout.analysis import (
     AnalysisEvidence,
     EvidenceProvenance,
     RepositoryAnalysis,
 )
-from reproagent.planning import (
+from reproscout.planning import (
     PlanActionType,
     PlanBaseline,
     PlanLimitError,

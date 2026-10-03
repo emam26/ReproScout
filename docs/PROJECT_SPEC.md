@@ -1,12 +1,12 @@
-# ReproAgent Project Specification
+# ReproScout Project Specification
 
 ## 1. Product
 
-**Name:** ReproAgent
+**Name:** ReproScout
 
 **Purpose:** Autonomous reproducibility auditing for open-source AI/ML repositories.
 
-Given a public repository, ReproAgent attempts to determine whether the project can be reproduced from a clean environment and records exactly:
+Given a public repository, ReproScout attempts to determine whether the project can be reproduced from a clean environment and records exactly:
 
 * what worked,
 * what failed,
@@ -36,7 +36,7 @@ Open-source repositories frequently fail on new machines because of issues such 
 
 A developer normally has to manually investigate and repair these problems.
 
-ReproAgent should automate as much of this workflow as safely possible.
+ReproScout should automate as much of this workflow as safely possible.
 
 ---
 
@@ -574,7 +574,7 @@ llm/
     └── groq.py
 ```
 
-The rest of ReproAgent should not know which provider is active.
+The rest of ReproScout should not know which provider is active.
 
 ---
 
@@ -819,19 +819,19 @@ The first public interface should be a CLI.
 Future usage:
 
 ```bash
-reproagent run https://github.com/owner/project
+reproscout run https://github.com/owner/project
 ```
 
 Possible goal:
 
 ```bash
-reproagent run https://github.com/owner/project --goal tests
+reproscout run https://github.com/owner/project --goal tests
 ```
 
 Report inspection:
 
 ```bash
-reproagent report <run-id>
+reproscout report <run-id>
 ```
 
 Do not build a web frontend before the core engine works.
@@ -884,7 +884,7 @@ Create modules only when their roadmap phase begins.
 Long-term direction:
 
 ```text
-src/reproagent/
+src/reproscout/
 ├── cli.py
 ├── config.py
 │
@@ -935,7 +935,7 @@ Do not create unnecessary empty abstractions early.
 
 # 30. Evaluation
 
-ReproAgent must eventually be evaluated against real repositories.
+ReproScout must eventually be evaluated against real repositories.
 
 Start with:
 

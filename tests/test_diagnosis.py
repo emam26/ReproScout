@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from reproagent.diagnosis import (
+from reproscout.diagnosis import (
     DiagnosisAction,
     DiagnosisLimits,
     DiagnosisPolicyError,
@@ -15,19 +15,19 @@ from reproagent.diagnosis import (
     parse_diagnosis_decision,
     validate_diagnosis,
 )
-from reproagent.diagnostics import (
+from reproscout.diagnostics import (
     EvidenceBuilder,
     EvidenceLimits,
     FailureClass,
     normalize_failure,
 )
-from reproagent.llm import (
+from reproscout.llm import (
     AgentDecision,
     LLMUsage,
     MockLLMProvider,
     ProviderNetworkError,
 )
-from reproagent.state import SQLiteRunStore, Stage
+from reproscout.state import SQLiteRunStore, Stage
 
 
 def _context(

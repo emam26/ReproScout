@@ -4,28 +4,28 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.diagnostics import EvidenceBuilder, normalize_failure
-from reproagent.execution import PlanExecutionEngine
-from reproagent.planning import (
+from reproscout.diagnostics import EvidenceBuilder, normalize_failure
+from reproscout.execution import PlanExecutionEngine
+from reproscout.planning import (
     PlanActionType,
     PlanBaseline,
     PlanStep,
     ReproductionPlan,
 )
-from reproagent.repair import (
+from reproscout.repair import (
     ControlledRepairPipeline,
     RepairAction,
     RepairActionType,
     RepairExperimentStatus,
     Reversibility,
 )
-from reproagent.sandbox import (
+from reproscout.sandbox import (
     DockerSandbox,
     SandboxConfig,
     SandboxError,
     check_docker_available,
 )
-from reproagent.state import SQLiteRunStore, Stage
+from reproscout.state import SQLiteRunStore, Stage
 
 
 @pytest.fixture(scope="session")

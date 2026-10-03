@@ -5,15 +5,15 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.analysis import (
+from reproscout.analysis import (
     ContextLimits,
     EvidenceProvenance,
     RepositoryAnalysisError,
     RepositoryAnalyzer,
     collect_context_documents,
 )
-from reproagent.llm import AgentDecision, MockLLMProvider
-from reproagent.repo import RepositoryManifest
+from reproscout.llm import AgentDecision, MockLLMProvider
+from reproscout.repo import RepositoryManifest
 
 
 def _manifest(root: Path, files: dict[str, str | bytes]) -> RepositoryManifest:

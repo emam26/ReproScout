@@ -113,7 +113,7 @@ export default function App() {
       <header className="masthead">
         <div>
           <p className="eyebrow">LOCAL CONTROL SURFACE</p>
-          <h1>ReproAgent</h1>
+          <h1>ReproScout</h1>
           <p className="lede">Evidence-backed reproducibility audits for open-source software.</p>
         </div>
         <div className="safety-note">

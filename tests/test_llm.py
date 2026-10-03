@@ -7,7 +7,7 @@ from collections.abc import Sequence
 import pytest
 from pydantic import ValidationError
 
-from reproagent.llm import (
+from reproscout.llm import (
     AgentDecision,
     GeminiProvider,
     GroqProvider,
@@ -25,8 +25,8 @@ from reproagent.llm import (
     create_provider,
     get_llm_settings,
 )
-from reproagent.llm.http import HTTPResponse
-from reproagent.state import SQLiteRunStore
+from reproscout.llm.http import HTTPResponse
+from reproscout.state import SQLiteRunStore
 
 
 class FakeTransport:

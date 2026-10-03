@@ -1,10 +1,10 @@
-# ReproAgent — Agent Instructions
+# ReproScout — Agent Instructions
 
 ## Project Mission
 
-ReproAgent is an autonomous reproducibility auditor for open-source software, initially focused on Python AI/ML repositories.
+ReproScout is an autonomous reproducibility auditor for open-source software, initially focused on Python AI/ML repositories.
 
-Given a public GitHub repository, ReproAgent should determine whether the project can be reproduced from a clean environment using its published instructions.
+Given a public GitHub repository, ReproScout should determine whether the project can be reproduced from a clean environment using its published instructions.
 
 The system should eventually:
 
@@ -423,7 +423,7 @@ Where relevant it should have:
 
 # Product North Star
 
-ReproAgent should ultimately answer:
+ReproScout should ultimately answer:
 
 > Can a new user reproduce this open-source project from a clean environment, and if not, exactly what prevents reproduction?
 

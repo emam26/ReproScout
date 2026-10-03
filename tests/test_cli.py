@@ -1,6 +1,6 @@
 from typer.testing import CliRunner
 
-from reproagent.cli import app
+from reproscout.cli import app
 
 runner = CliRunner()
 
@@ -19,14 +19,14 @@ def test_version_command() -> None:
     result = runner.invoke(app, ["version"])
 
     assert result.exit_code == 0
-    assert result.stdout.strip() == "ReproAgent 0.1.0"
+    assert result.stdout.strip() == "ReproScout 0.1.0"
 
 
 def test_version_option() -> None:
     result = runner.invoke(app, ["--version"])
 
     assert result.exit_code == 0
-    assert result.stdout.strip() == "ReproAgent 0.1.0"
+    assert result.stdout.strip() == "ReproScout 0.1.0"
 
 
 def test_run_help_documents_goal_and_machine_output() -> None:

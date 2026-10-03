@@ -1,6 +1,6 @@
 # Phase 17 — Evaluation Set
 
-ReproAgent now ships a versioned offline evaluation set with 20 controlled
+ReproScout now ships a versioned offline evaluation set with 20 controlled
 fixture contracts. The set is loaded by `load_evaluation_set()` and validated by
 strict Pydantic models before a later evaluator can use it.
 

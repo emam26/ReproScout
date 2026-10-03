@@ -5,7 +5,7 @@ application service used by the CLI. Install it with:
 
 ```bash
 pip install -e ".[api]"
-reproagent serve
+reproscout serve
 ```
 
 The server binds to `127.0.0.1:8000` by default. It is not a hardened

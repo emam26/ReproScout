@@ -4,19 +4,19 @@ import hashlib
 from datetime import UTC, datetime
 from pathlib import Path
 
-from reproagent.diagnostics import (
+from reproscout.diagnostics import (
     EnvironmentFingerprint,
     VerificationContract,
     VerificationTarget,
     VerificationTargetType,
 )
-from reproagent.execution import (
+from reproscout.execution import (
     ExecutionFailureKind,
     ExecutionRunResult,
     RunArtifactPaths,
     StepExecutionResult,
 )
-from reproagent.verification import (
+from reproscout.verification import (
     ObjectiveVerificationEngine,
     VerificationCheckStatus,
     VerificationLevel,

@@ -5,21 +5,21 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.execution import (
+from reproscout.execution import (
     ExecutionEngineError,
     ExecutionFailureKind,
     ExecutionLimits,
     PlanExecutionEngine,
 )
-from reproagent.planning import (
+from reproscout.planning import (
     PlanActionType,
     PlanBaseline,
     PlanStep,
     ReproductionPlan,
     RiskLevel,
 )
-from reproagent.sandbox import ExecutionResult, Sandbox, SandboxConfig, SandboxError
-from reproagent.state import EventType, RunOutcome, SQLiteRunStore, Stage
+from reproscout.sandbox import ExecutionResult, Sandbox, SandboxConfig, SandboxError
+from reproscout.state import EventType, RunOutcome, SQLiteRunStore, Stage
 
 
 class FakeSandbox(Sandbox):

@@ -4,12 +4,12 @@ import json
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from reproagent.observability import (
+from reproscout.observability import (
     ObservabilityError,
     ObservabilityIndex,
     build_run_observability,
 )
-from reproagent.state import (
+from reproscout.state import (
     AgentAction,
     Attempt,
     Event,
@@ -20,13 +20,13 @@ from reproagent.state import (
     ToolCall,
     ToolResult,
 )
-from reproagent.status import (
+from reproscout.status import (
     ReproductionStatus,
     ReproductionStatusResult,
     StatusReason,
     StatusReasonCode,
 )
-from reproagent.verification import (
+from reproscout.verification import (
     VerificationCheck,
     VerificationCheckStatus,
     VerificationEvidence,

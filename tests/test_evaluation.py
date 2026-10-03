@@ -5,7 +5,7 @@ import json
 import pytest
 from pydantic import ValidationError
 
-from reproagent.evaluation import (
+from reproscout.evaluation import (
     EvaluationCase,
     EvaluationCategory,
     EvaluationSet,
@@ -73,7 +73,7 @@ def test_evaluation_set_rejects_duplicate_fixture_paths() -> None:
 
 
 def test_loader_wraps_malformed_packaged_data(monkeypatch) -> None:
-    from reproagent.evaluation import catalog
+    from reproscout.evaluation import catalog
 
     class BrokenResource:
         def read_text(self, *, encoding: str) -> str:

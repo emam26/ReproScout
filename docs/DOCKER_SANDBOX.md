@@ -50,14 +50,14 @@ credential directories, and symlinks are rejected from mounted workspaces.
 Containers are labeled with:
 
 ```text
-reproagent.managed=true
-reproagent.run_id=<run-id>
+reproscout.managed=true
+reproscout.run_id=<run-id>
 ```
 
 The exact container ID is retained by the `DockerSandbox` instance. Cleanup
-removes only that ID (or the unique ReproAgent-generated name if creation
+removes only that ID (or the unique ReproScout-generated name if creation
 fails). Timeout handling destroys the owned container before returning a
-timed-out result. ReproAgent never performs global Docker cleanup.
+timed-out result. ReproScout never performs global Docker cleanup.
 
 ## Known limitations
 

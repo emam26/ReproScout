@@ -22,7 +22,7 @@ patch, and rollback controls inside that workspace.
 
 ## URL and asset controls
 
-`reproagent.network` accepts only credential-free HTTPS URLs to public
+`reproscout.network` accepts only credential-free HTTPS URLs to public
 destinations. It rejects loopback, link-local, private, reserved, multicast,
 unspecified, localhost, `.local`, and internal hostnames. Downloads enforce
 timeouts, byte limits, and redirect counts. Redirect targets are parsed and

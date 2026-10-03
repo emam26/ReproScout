@@ -8,7 +8,7 @@ replacement, standard unified patches, exact diffs, and rollback.
 ## Safety and audit guarantees
 
 Every path is normalized and resolved beneath the workspace. Absolute paths,
-`..` traversal, `.git` metadata, symlink paths, and ReproAgent's own project
+`..` traversal, `.git` metadata, symlink paths, and ReproScout's own project
 root are rejected. File size, patch size, changed-file count, and changed-byte
 limits are enforced before writes. Writes use a temporary file in the target
 file's parent followed by an atomic replacement.

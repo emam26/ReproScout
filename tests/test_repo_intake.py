@@ -5,9 +5,9 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.repo.clone import CloneError, clone_repository, create_run_workspace
-from reproagent.repo.manifest import build_manifest
-from reproagent.repo.urls import RepositoryUrlError, parse_github_url
+from reproscout.repo.clone import CloneError, clone_repository, create_run_workspace
+from reproscout.repo.manifest import build_manifest
+from reproscout.repo.urls import RepositoryUrlError, parse_github_url
 
 
 def _run_git(args: list[str], cwd: Path) -> str:
@@ -33,7 +33,7 @@ def _create_fixture_repository(
         path.write_text(contents, encoding="utf-8")
 
     _run_git(["init"], repository)
-    _run_git(["config", "user.name", "ReproAgent Tests"], repository)
+    _run_git(["config", "user.name", "ReproScout Tests"], repository)
     _run_git(["config", "user.email", "tests@example.invalid"], repository)
     _run_git(["add", "."], repository)
     _run_git(["commit", "-m", "fixture"], repository)

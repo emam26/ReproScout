@@ -6,17 +6,17 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.analysis import RepositoryAnalyzer
-from reproagent.execution import ExecutionFailureKind, PlanExecutionEngine
-from reproagent.planning import ReproductionPlanner
-from reproagent.repo import CloneResult, build_manifest, parse_github_url
-from reproagent.sandbox import (
+from reproscout.analysis import RepositoryAnalyzer
+from reproscout.execution import ExecutionFailureKind, PlanExecutionEngine
+from reproscout.planning import ReproductionPlanner
+from reproscout.repo import CloneResult, build_manifest, parse_github_url
+from reproscout.sandbox import (
     DockerSandbox,
     SandboxConfig,
     SandboxError,
     check_docker_available,
 )
-from reproagent.state import RunOutcome, SQLiteRunStore, Stage
+from reproscout.state import RunOutcome, SQLiteRunStore, Stage
 
 
 @pytest.fixture(scope="session")

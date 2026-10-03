@@ -7,7 +7,7 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.state import (
+from reproscout.state import (
     LEGAL_TRANSITIONS,
     AgentAction,
     Attempt,
@@ -22,7 +22,7 @@ from reproagent.state import (
     ToolCall,
     ToolResult,
 )
-from reproagent.state.models import format_timestamp, utc_now
+from reproscout.state.models import format_timestamp, utc_now
 
 
 def _advance(

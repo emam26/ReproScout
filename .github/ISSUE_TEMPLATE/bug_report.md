@@ -1,6 +1,6 @@
 ---
 name: Bug report
-about: Report a reproducible problem in ReproAgent
+about: Report a reproducible problem in ReproScout
 title: "bug: "
 labels: bug
 ---
@@ -11,7 +11,7 @@ Describe what went wrong and what you expected.
 
 ## Reproduction
 
-Include the ReproAgent commit, command, safe fixture/repository URL, and
+Include the ReproScout commit, command, safe fixture/repository URL, and
 relevant bounded status/report evidence. Remove secrets and private data.
 
 ## Environment
@@ -19,7 +19,7 @@ relevant bounded status/report evidence. Remove secrets and private data.
 - OS:
 - Python:
 - Docker:
-- ReproAgent install:
+- ReproScout install:
 
 ## Checks
 

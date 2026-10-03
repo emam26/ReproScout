@@ -1,6 +1,6 @@
 # Phase 16 — Observability
 
-ReproAgent derives observability from the existing append-only `Event` stream.
+ReproScout derives observability from the existing append-only `Event` stream.
 It does not add a second logging system, external metrics service, or target
 execution path.
 

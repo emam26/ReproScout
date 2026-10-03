@@ -1,6 +1,6 @@
 # State and Events
 
-Phase 3 adds ReproAgent's local control plane: typed lifecycle state, a narrow
+Phase 3 adds ReproScout's local control plane: typed lifecycle state, a narrow
 action/evidence vocabulary, and durable audit history. It intentionally does
 not add an LLM provider, planning policy, autonomous execution, repair logic,
 or new sandbox behavior.
@@ -43,7 +43,7 @@ the only way to enter `DONE`; it requires `REPORT` and a final outcome of
 
 ## Typed records
 
-The public types live in `reproagent.state`:
+The public types live in `reproscout.state`:
 
 * `RunState` and `Stage` describe the current lifecycle snapshot.
 * `RunOutcome` records the terminal result.
@@ -81,7 +81,7 @@ listing events, but exposes no event update or delete operation.
 ```python
 from pathlib import Path
 
-from reproagent.state import RunOutcome, SQLiteRunStore, Stage
+from reproscout.state import RunOutcome, SQLiteRunStore, Stage
 
 with SQLiteRunStore(Path("runs") / "example.sqlite3") as store:
     run = store.create_run(context={"repository": "owner/project"})

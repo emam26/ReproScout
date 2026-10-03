@@ -31,7 +31,7 @@ python -m pip check
 ```
 
 These commands are intended for an already-created Docker sandbox. They never
-install or inspect target-project dependencies in the host ReproAgent
+install or inspect target-project dependencies in the host ReproScout
 environment.
 
 Python imports are parsed with `ast` under file/count limits and compared with

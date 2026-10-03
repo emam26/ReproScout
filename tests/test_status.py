@@ -2,22 +2,22 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
-from reproagent.diagnostics import (
+from reproscout.diagnostics import (
     VerificationContract,
     VerificationTarget,
     VerificationTargetType,
 )
-from reproagent.execution import (
+from reproscout.execution import (
     ExecutionRunResult,
     RunArtifactPaths,
     StepExecutionResult,
 )
-from reproagent.status import (
+from reproscout.status import (
     ReproductionStatus,
     StatusReasonCode,
     compute_reproduction_status,
 )
-from reproagent.verification import ObjectiveVerificationEngine
+from reproscout.verification import ObjectiveVerificationEngine
 
 
 def _execution(*, exit_code: int = 0) -> ExecutionRunResult:

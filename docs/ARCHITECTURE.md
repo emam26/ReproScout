@@ -1,6 +1,6 @@
 # Architecture overview
 
-ReproAgent is a bounded reproducibility auditor rather than a general coding
+ReproScout is a bounded reproducibility auditor rather than a general coding
 agent. Its control flow is explicit:
 
 ```text

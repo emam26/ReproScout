@@ -4,11 +4,11 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.application import AuditRequest, AuditService, ServiceError
-from reproagent.execution import PlanExecutionEngine
-from reproagent.repo.clone import CloneResult
-from reproagent.sandbox import ExecutionResult, Sandbox, SandboxConfig
-from reproagent.status import ReproductionStatus
+from reproscout.application import AuditRequest, AuditService, ServiceError
+from reproscout.execution import PlanExecutionEngine
+from reproscout.repo.clone import CloneResult
+from reproscout.sandbox import ExecutionResult, Sandbox, SandboxConfig
+from reproscout.status import ReproductionStatus
 
 
 class FixtureSandbox(Sandbox):

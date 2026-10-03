@@ -5,7 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.diagnostics import (
+from reproscout.diagnostics import (
     AssetKind,
     AssetScanLimits,
     EvidenceBuilder,
@@ -27,14 +27,14 @@ from reproagent.diagnostics import (
     requirement_marker_applies,
     version_satisfies,
 )
-from reproagent.planning import (
+from reproscout.planning import (
     PlanActionType,
     PlanBaseline,
     PlanStep,
     ReproductionPlan,
     RiskLevel,
 )
-from reproagent.sandbox import ExecutionResult, Sandbox, SandboxConfig
+from reproscout.sandbox import ExecutionResult, Sandbox, SandboxConfig
 
 
 @pytest.mark.parametrize(

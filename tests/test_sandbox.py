@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.sandbox import (
+from reproscout.sandbox import (
     DockerSandbox,
     ResourceLimits,
     SandboxConfig,
@@ -51,8 +51,8 @@ def test_docker_run_arguments_have_safety_and_ownership_defaults(
     assert "--memory=512m" in arguments
     assert "--cpus=1" in arguments
     assert "--pids-limit=128" in arguments
-    assert "reproagent.managed=true" in arguments
-    assert "reproagent.run_id=unit-test" in arguments
+    assert "reproscout.managed=true" in arguments
+    assert "reproscout.run_id=unit-test" in arguments
     assert any("target=/workspace" in argument for argument in arguments)
 
 
@@ -221,7 +221,7 @@ def test_docker_container_has_ownership_labels(docker_sandbox) -> None:
             *command,
             "inspect",
             "--format",
-            '{{index .Config.Labels "reproagent.managed"}}',
+            '{{index .Config.Labels "reproscout.managed"}}',
             container_id,
         ],
         capture_output=True,

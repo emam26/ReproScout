@@ -2,7 +2,7 @@
 
 > Autonomous agent for reproducing, diagnosing, and repairing open-source research projects.
 
-[![CI](https://github.com/emam26/ReproAgent/actions/workflows/ci.yml/badge.svg)](https://github.com/emam26/ReproAgent/actions/workflows/ci.yml)
+[![CI](https://github.com/emam26/ReproScout/actions/workflows/ci.yml/badge.svg)](https://github.com/emam26/ReproScout/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
@@ -13,10 +13,8 @@ its documented workflow, runs target commands in Docker, records failures,
 diagnoses likely causes, and produces an evidence-backed report.
 
 > [!NOTE]
-> ReproScout is pre-release. The approved product name is already used for
-> branding, but this checkout still exposes the `reproagent` Python package and
-> CLI until the separate package-rename work is completed. The commands below
-> are therefore intentionally `reproagent`.
+> ReproScout is pre-release. The package and CLI now use the `reproscout` name;
+> PyPI publication and hosted deployment are still future work.
 
 ## What is ReproScout?
 
@@ -78,8 +76,8 @@ ReproScout is not published to PyPI yet. Install the current development
 checkout instead. Python 3.11+ and Docker are required for target execution.
 
 ```bash
-git clone https://github.com/emam26/ReproAgent.git
-cd ReproAgent
+git clone https://github.com/emam26/ReproScout.git
+cd ReproScout
 python -m venv .venv
 source .venv/bin/activate          # Windows: .venv\Scripts\Activate.ps1
 python -m pip install -e .
@@ -88,14 +86,14 @@ python -m pip install -e .
 Check prerequisites and inspect a repository without executing its code:
 
 ```bash
-reproagent doctor
-reproagent inspect https://github.com/user/project --no-ai
+reproscout doctor
+reproscout inspect https://github.com/user/project --no-ai
 ```
 
 Run a bounded audit:
 
 ```bash
-reproagent audit https://github.com/user/project --goal auto --no-ai
+reproscout audit https://github.com/user/project --goal auto --no-ai
 ```
 
 Use `--runs-dir ./local-runs` when you want artifacts stored in a specific
@@ -230,7 +228,7 @@ and binds to loopback by default:
 
 ```bash
 python -m pip install -e ".[api]"
-reproagent serve
+reproscout serve
 ```
 
 The API exposes versioned health, audit, run, event, report, and persisted-plan

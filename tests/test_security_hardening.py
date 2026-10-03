@@ -4,14 +4,14 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.network import (
+from reproscout.network import (
     PublicUrlError,
     SafeDownloadLimits,
     download_public_url,
     validate_public_url,
 )
-from reproagent.repo import clone as clone_module
-from reproagent.sandbox import (
+from reproscout.repo import clone as clone_module
+from reproscout.sandbox import (
     DockerSandbox,
     ResourceLimits,
     SandboxConfig,

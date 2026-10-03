@@ -4,22 +4,22 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.cleanroom import CleanRoomRunner, recipe_from_plan
-from reproagent.execution import PlanExecutionEngine
-from reproagent.planning import (
+from reproscout.cleanroom import CleanRoomRunner, recipe_from_plan
+from reproscout.execution import PlanExecutionEngine
+from reproscout.planning import (
     PlanActionType,
     PlanBaseline,
     PlanStep,
     ReproductionPlan,
 )
-from reproagent.sandbox import (
+from reproscout.sandbox import (
     DockerSandbox,
     SandboxConfig,
     SandboxError,
     check_docker_available,
 )
-from reproagent.state import SQLiteRunStore
-from reproagent.status import ReproductionStatus
+from reproscout.state import SQLiteRunStore
+from reproscout.status import ReproductionStatus
 
 
 @pytest.fixture(scope="session")

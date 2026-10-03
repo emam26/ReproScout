@@ -3,7 +3,7 @@ from __future__ import annotations
 import pytest
 from pydantic import ValidationError
 
-from reproagent.evaluation import (
+from reproscout.evaluation import (
     EvaluationError,
     EvaluationObservation,
     EvaluationRunner,
@@ -11,7 +11,7 @@ from reproagent.evaluation import (
     evaluate_observations,
     load_evaluation_set,
 )
-from reproagent.status import ReproductionStatus
+from reproscout.status import ReproductionStatus
 
 
 def _observation(case) -> EvaluationObservation:

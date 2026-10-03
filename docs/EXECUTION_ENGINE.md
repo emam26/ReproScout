@@ -36,8 +36,8 @@ The Docker sandbox applies its existing memory, CPU, PID, capability,
 the exact container created for the run and retains the ownership labels:
 
 ```text
-reproagent.managed=true
-reproagent.run_id=<run-id>
+reproscout.managed=true
+reproscout.run_id=<run-id>
 ```
 
 ## Failure classes
@@ -78,7 +78,7 @@ bounds, and secret redaction. Docker integration fixtures exercise the complete
 manifest → analysis → plan → execution path for success, failure, and timeout,
 including exact container cleanup.
 
-The existing CLI remains intake-only. Wiring `reproagent run` through the full
+The existing CLI remains intake-only. Wiring `reproscout run` through the full
 pipeline is deferred until its configuration and lifecycle interface are stable.
 Autonomous diagnosis/repair and controlled source editing begin no earlier than
 Phase 8.

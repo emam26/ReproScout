@@ -6,9 +6,9 @@ from pathlib import Path
 
 import pytest
 
-from reproagent.diagnostics import EnvironmentFingerprint
-from reproagent.execution import StepExecutionResult
-from reproagent.reporting import (
+from reproscout.diagnostics import EnvironmentFingerprint
+from reproscout.execution import StepExecutionResult
+from reproscout.reporting import (
     ReportArtifactPaths,
     ReportAttempt,
     ReportAttemptSource,
@@ -16,7 +16,7 @@ from reproagent.reporting import (
     RunReport,
     RunReportWriter,
 )
-from reproagent.state import SQLiteRunStore, Stage
+from reproscout.state import SQLiteRunStore, Stage
 
 
 def _environment() -> EnvironmentFingerprint:
