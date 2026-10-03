@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import uuid
 from collections.abc import Callable
 from pathlib import Path
@@ -171,11 +172,16 @@ class CleanRoomRunner:
                     "Clean-room recipe contains credential-like material."
                 )
             commands.append(command)
-        (clean_run_directory / "reproduce.sh").write_text(
+        recipe_path = clean_run_directory / "reproduce.sh"
+        recipe_path.write_text(
             "#!/usr/bin/env bash\nset -eu\n\n" + "\n".join(commands) + "\n",
             encoding="utf-8",
             newline="\n",
         )
+        try:
+            os.chmod(recipe_path, 0o700)
+        except OSError:
+            pass
         (clean_run_directory / "REPRODUCTION.md").write_text(
             "# Clean-room reproduction\n\n"
             f"Repository: `{recipe.repository}`\n\n"

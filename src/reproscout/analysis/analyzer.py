@@ -121,22 +121,63 @@ def _resolve_environment(builder: _AnalysisBuilder) -> ResolvedEnvironment:
         unresolved.append(
             "Dependency source was detected without a supported installer."
         )
-    exact_versions = {
-        match.group(1)
-        for hint in builder.python_version_hints
-        if (
-            match := re.fullmatch(r"(?:==)?(\d+\.\d+(?:\.\d+)?)", hint.replace(" ", ""))
+    supported_minors = set(range(9, 14))
+    allowed_minors = set(supported_minors)
+    lower_bound: int | None = None
+    upper_bound: int | None = None
+    saw_constraint = False
+    for hint in builder.python_version_hints:
+        match = re.fullmatch(
+            r"(?P<operator>==|>=|<=|~=|>|<)?\s*(?P<major>\d+)\.(?P<minor>\d+)(?:\.\d+)?",
+            hint.replace(" ", ""),
         )
-    }
-    python_version = min(exact_versions) if len(exact_versions) == 1 else None
-    if len(exact_versions) > 1:
-        unresolved.append("Repository evidence specifies conflicting Python versions.")
-    if python_version is not None:
-        major, minor = (int(part) for part in python_version.split(".")[:2])
-        if major != 3 or minor not in {9, 10, 11, 12, 13}:
+        if match is None:
+            unresolved.append(f"Python requirement could not be resolved: {hint}.")
+            continue
+        major = int(match.group("major"))
+        minor = int(match.group("minor"))
+        operator = match.group("operator") or "=="
+        saw_constraint = True
+        if major != 3 or minor not in supported_minors:
             unresolved.append(
-                f"Python {python_version} is outside the supported v0.1 runtime envelope."
+                f"Python {major}.{minor} is outside the supported v0.1 runtime envelope."
             )
+            continue
+        if operator in {"==", "~="}:
+            allowed_minors &= {minor}
+        elif operator == ">=":
+            allowed_minors &= {
+                candidate for candidate in supported_minors if candidate >= minor
+            }
+            lower_bound = max(lower_bound or minor, minor)
+        elif operator == ">":
+            allowed_minors &= {
+                candidate for candidate in supported_minors if candidate > minor
+            }
+            lower_bound = max(lower_bound or minor + 1, minor + 1)
+        elif operator == "<=":
+            allowed_minors &= {
+                candidate for candidate in supported_minors if candidate <= minor
+            }
+            upper_bound = min(upper_bound or minor, minor)
+        elif operator == "<":
+            allowed_minors &= {
+                candidate for candidate in supported_minors if candidate < minor
+            }
+            upper_bound = min(upper_bound or minor - 1, minor - 1)
+    if saw_constraint and not allowed_minors:
+        unresolved.append("Repository evidence specifies conflicting Python versions.")
+    if saw_constraint and allowed_minors:
+        selected_minor = (
+            lower_bound
+            if lower_bound in allowed_minors
+            else upper_bound
+            if upper_bound in allowed_minors
+            else min(allowed_minors)
+        )
+        python_version = f"3.{selected_minor}"
+    else:
+        python_version = None
     if builder.gpu_required:
         unresolved.append("GPU/CUDA execution is outside the supported CPU envelope.")
     base_image = (

@@ -115,6 +115,23 @@ def test_pyproject_extracts_python_entrypoint_and_test_configuration(
     assert analysis.likely_execution_target == "python -m pytest"
 
 
+def test_resolved_environment_honors_python_minimum(tmp_path: Path) -> None:
+    analysis = _analyze(
+        _manifest(
+            tmp_path,
+            {
+                "pyproject.toml": (
+                    '[project]\nname = "fixture"\nrequires-python = ">=3.12"\n'
+                )
+            },
+        )
+    )
+
+    assert analysis.resolved_environment is not None
+    assert analysis.resolved_environment.python_version == "3.12"
+    assert analysis.resolved_environment.base_image == "python:3.12-slim"
+
+
 def test_readme_extracts_documented_workflow_environment_assets_and_gpu(
     tmp_path: Path,
 ) -> None:
