@@ -51,6 +51,7 @@ class BenchmarkObservation(DiagnosticModel):
     """Observed facts from one real-repository run; no expected label is inferred."""
 
     repository_id: str
+    source_commit: str | None = Field(default=None, pattern=r"^[0-9a-f]{40}$")
     observed_status: ReproductionStatus
     observed_verification_level: VerificationLevel | None = None
     failure_category: FailureClass | None = None
@@ -60,6 +61,12 @@ class BenchmarkObservation(DiagnosticModel):
     llm_call_count: int = Field(ge=0)
     token_usage: int | None = Field(default=None, ge=0)
     false_reproduced: bool | None = None
+    commands_executed: list[str] = Field(default_factory=list, max_length=100)
+    dependency_findings: list[str] = Field(default_factory=list, max_length=100)
+    security_findings: list[str] = Field(default_factory=list, max_length=100)
+    artifact_locations: list[str] = Field(default_factory=list, max_length=20)
+    executed_at: str | None = Field(default=None, max_length=100)
+    environment: dict[str, str] = Field(default_factory=dict, max_length=30)
 
 
 class BenchmarkReport(DiagnosticModel):
@@ -98,6 +105,14 @@ def run_benchmark(
         observation = adapter(repository)
         if observation.repository_id != repository.repository_id:
             raise ValueError("Benchmark adapter returned the wrong repository ID.")
+        if observation.source_commit is None:
+            observation = observation.model_copy(
+                update={"source_commit": repository.commit_sha}
+            )
+        elif observation.source_commit != repository.commit_sha:
+            raise ValueError(
+                "Benchmark adapter returned evidence for a different commit."
+            )
         observations.append(observation)
     adjudicated = [item.false_reproduced for item in observations]
     false_count = (

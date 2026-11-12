@@ -26,6 +26,7 @@ class EvaluationObservation(DiagnosticModel):
     """Observed facts for one case, supplied by a controlled system adapter."""
 
     case_id: str = Field(pattern=r"^eval-[0-9]{3}$")
+    scenario_id: str | None = Field(default=None, pattern=r"^S[0-9]{2}$")
     observed_status: ReproductionStatus
     observed_verification_level: VerificationLevel
     failure_category: FailureClass | None = None
@@ -36,6 +37,15 @@ class EvaluationObservation(DiagnosticModel):
     llm_calls: int = Field(ge=0)
     duration_seconds: float = Field(ge=0)
     stage_outcomes: dict[str, bool | None] = Field(default_factory=dict, max_length=10)
+    fixture_or_repository: str | None = Field(default=None, max_length=500)
+    source_commit: str | None = Field(default=None, pattern=r"^[0-9a-fA-F]{40}$")
+    commands_executed: list[str] = Field(default_factory=list, max_length=100)
+    dependency_findings: list[str] = Field(default_factory=list, max_length=100)
+    security_findings: list[str] = Field(default_factory=list, max_length=100)
+    docker_outcome: str | None = Field(default=None, max_length=500)
+    artifact_locations: list[str] = Field(default_factory=list, max_length=20)
+    executed_at: str | None = Field(default=None, max_length=100)
+    environment: dict[str, str] = Field(default_factory=dict, max_length=30)
 
     @model_validator(mode="after")
     def _repair_success_requires_attempt(self) -> Self:

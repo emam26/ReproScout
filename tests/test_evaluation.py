@@ -10,7 +10,9 @@ from reproscout.evaluation import (
     EvaluationCategory,
     EvaluationSet,
     EvaluationSetError,
+    ScenarioRunState,
     load_evaluation_set,
+    load_scenario_matrix,
 )
 
 
@@ -46,6 +48,15 @@ def test_evaluation_set_is_metadata_only_and_does_not_claim_observed_results() -
         case.fixture_path.startswith("tests/fixtures/evaluation/")
         for case in evaluation_set.cases
     )
+
+
+def test_scenario_matrix_is_complete_and_unexecuted_by_default() -> None:
+    matrix = load_scenario_matrix()
+
+    assert [item.scenario_id for item in matrix.scenarios] == [
+        f"S{index:02d}" for index in range(1, 21)
+    ]
+    assert all(item.state == ScenarioRunState.NOT_RUN for item in matrix.scenarios)
 
 
 def test_evaluation_case_rejects_unsafe_fixture_paths() -> None:
