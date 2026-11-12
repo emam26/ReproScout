@@ -71,7 +71,7 @@ def test_docker_run_arguments_have_safety_and_ownership_defaults(
     assert "reproscout.run_id=unit-test" in arguments
     assert "--user" in arguments
     assert any(
-        argument.startswith("/runtime:rw,nosuid,nodev,size=256m,")
+        argument.startswith("/runtime:rw,exec,nosuid,nodev,size=256m,")
         for argument in arguments
     )
     assert (
@@ -92,6 +92,9 @@ def test_docker_run_arguments_have_safety_and_ownership_defaults(
     runtime_mount = next(
         argument for argument in arguments if argument.startswith("/runtime:")
     )
+    runtime_options = runtime_mount.split(":", maxsplit=1)[1].split(",")
+    assert "exec" in runtime_options
+    assert "noexec" not in runtime_options
     assert f"uid={expected_uid}" in runtime_mount
     assert f"gid={expected_gid}" in runtime_mount
     assert any("target=/workspace" in argument for argument in arguments)
@@ -137,6 +140,7 @@ def test_sandbox_instances_use_private_runtime_environment(
         argument for argument in second_args if argument.startswith("/runtime:")
     )
     assert first_runtime == second_runtime
+    assert "exec" in first_runtime.split(":", maxsplit=1)[1].split(",")
     assert "uid=1001,gid=1002,mode=700" in first_runtime
     assert "/runtime/venv/bin" in next(
         argument for argument in first_args if argument.startswith("PATH=")
@@ -183,9 +187,7 @@ def test_unexpected_workspace_directory_symlink_is_rejected(tmp_path: Path) -> N
     outside = tmp_path.parent / "outside-directory"
     outside.mkdir()
     try:
-        (tmp_path / "linked-directory").symlink_to(
-            outside, target_is_directory=True
-        )
+        (tmp_path / "linked-directory").symlink_to(outside, target_is_directory=True)
     except (OSError, NotImplementedError):
         pytest.skip("symlink creation is unavailable in this environment")
 
@@ -468,10 +470,13 @@ def docker_sandbox(tmp_path: Path, docker_availability):
 def test_docker_success_and_cleanup(docker_sandbox) -> None:
     sandbox, command = docker_sandbox
     container_id = sandbox.container_id
-    result = sandbox.execute("python -c \"print('hello')\"")
+    result = sandbox.execute(
+        "python -c \"import sys; print(sys.executable); print('hello')\""
+    )
 
     assert container_id is not None
     assert result.exit_code == 0
+    assert "/runtime/venv/bin/python" in result.stdout
     assert "hello" in result.stdout
     assert result.timed_out is False
     sandbox.destroy()
@@ -572,7 +577,7 @@ def test_docker_disables_network_by_default(docker_sandbox) -> None:
     container_id = sandbox.container_id
     result = sandbox.execute(
         (
-            "python -c \"import urllib.request; "
+            'python -c "import urllib.request; '
             "urllib.request.urlopen('https://example.com', timeout=1)\""
         ),
         timeout_seconds=5,

@@ -304,7 +304,7 @@ class DockerSandbox(Sandbox):
             "/tmp:rw,nosuid,nodev,size=64m",
             "--tmpfs",
             (
-                f"/runtime:rw,nosuid,nodev,size={_RUNTIME_TMPFS_SIZE},"
+                f"/runtime:rw,exec,nosuid,nodev,size={_RUNTIME_TMPFS_SIZE},"
                 f"uid={uid},gid={gid},mode=700"
             ),
             "--mount",
@@ -343,9 +343,7 @@ class DockerSandbox(Sandbox):
             for directory in list(directories):
                 directory_path = current_path / directory
                 if directory_path.is_symlink():
-                    if self._is_allowed_managed_venv_symlink(
-                        workspace, directory_path
-                    ):
+                    if self._is_allowed_managed_venv_symlink(workspace, directory_path):
                         directories.remove(directory)
                         continue
                     raise SandboxSecurityError(

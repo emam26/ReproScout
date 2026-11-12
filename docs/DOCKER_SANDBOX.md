@@ -46,8 +46,10 @@ Only that workspace is mounted. `.env`, SSH-key filenames, common cloud
 credential directories, and repository-controlled symlinks are rejected from
 mounted workspaces. The sandbox-managed Python environment is created in a
 container-private, UID/GID-owned `/runtime` tmpfs; a pre-existing
-repository-controlled venv is never selected or reused. The only managed-directory
-validation exception is the exact Python venv `lib64 -> lib` link under
+repository-controlled venv is never selected or reused. The runtime tmpfs is
+explicitly executable for its managed interpreter but remains `nosuid`, `nodev`,
+and mode `700`. The only managed-directory validation exception is the exact Python
+venv `lib64 -> lib` link under
 `.reproscout/venv`, and it is accepted only when the destination remains inside
 that venv and the expected venv files are real files.
 

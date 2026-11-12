@@ -327,9 +327,7 @@ class PreflightArtifactWriter:
             lines.append("- No verified environment fact was recorded.")
         lines.extend(["", "## Unresolved problems", ""])
         if assessment.unresolved_problems:
-            lines.extend(
-                f"- {problem}" for problem in assessment.unresolved_problems
-            )
+            lines.extend(f"- {problem}" for problem in assessment.unresolved_problems)
         else:
             lines.append("- None recorded.")
         lines.extend(["", "## Unverified capabilities", ""])
@@ -418,9 +416,7 @@ class PreflightArtifactWriter:
             )
         lines.extend(["", "## Unresolved problems", ""])
         if assessment.unresolved_problems:
-            lines.extend(
-                f"- {problem}" for problem in assessment.unresolved_problems
-            )
+            lines.extend(f"- {problem}" for problem in assessment.unresolved_problems)
         else:
             lines.append("- None recorded.")
         lines.extend(["", "## Unverified capabilities", ""])
@@ -485,9 +481,7 @@ class PreflightArtifactWriter:
         if isinstance(value, str):
             return redact_sensitive_text(value)
         if isinstance(value, Mapping):
-            return {
-                key: cls._redact_json_value(item) for key, item in value.items()
-            }
+            return {key: cls._redact_json_value(item) for key, item in value.items()}
         if isinstance(value, (list, tuple)):
             return [cls._redact_json_value(item) for item in value]
         return value

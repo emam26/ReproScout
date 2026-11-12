@@ -171,7 +171,9 @@ class PlanExecutionEngine:
                         network=(
                             shared_network
                             if reuse_sandbox
-                            else "bridge" if step.network_required else "none"
+                            else "bridge"
+                            if step.network_required
+                            else "none"
                         ),
                     )
                     sandbox = shared_sandbox
@@ -211,14 +213,11 @@ class PlanExecutionEngine:
                             error=str(exc),
                         )
                     finally:
-                        should_destroy = (
-                            sandbox is not None
-                            and (
-                                not reuse_sandbox
-                                or result is None
-                                or result.failure_kind is not None
-                                or attempt_number == len(plan.steps)
-                            )
+                        should_destroy = sandbox is not None and (
+                            not reuse_sandbox
+                            or result is None
+                            or result.failure_kind is not None
+                            or attempt_number == len(plan.steps)
                         )
                         if should_destroy and sandbox is not None:
                             destroyed = False
@@ -516,8 +515,7 @@ class PlanExecutionEngine:
         except SandboxError as exc:
             finished_at = datetime.now(UTC)
             stderr = _truncate(
-                redact_sensitive_text(str(exc))
-                or "Sandbox execution failed.",
+                redact_sensitive_text(str(exc)) or "Sandbox execution failed.",
                 self.limits.max_persisted_output_chars,
             )
             result = StepExecutionResult(

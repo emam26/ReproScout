@@ -6,7 +6,11 @@ from pathlib import Path
 import pytest
 
 from reproscout.diagnostics import EvidenceBuilder, normalize_failure
-from reproscout.execution import ExecutionRunResult, PlanExecutionEngine
+from reproscout.execution import (
+    ExecutionFailureKind,
+    ExecutionRunResult,
+    PlanExecutionEngine,
+)
 from reproscout.planning import (
     PlanActionType,
     PlanBaseline,
@@ -123,6 +127,8 @@ def test_repairable_fixture_retries_inside_docker_and_rolls_back(
     assert result.initial.workflow_succeeded is False, _execution_failure_message(
         result.initial
     )
+    assert result.initial.failure_kind is ExecutionFailureKind.COMMAND_NONZERO
+    assert result.initial.steps[0].exit_code == 7
     assert result.retry is not None
     assert result.retry.workflow_succeeded is True, _execution_failure_message(
         result.retry

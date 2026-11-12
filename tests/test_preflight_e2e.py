@@ -18,7 +18,6 @@ from reproscout.sandbox import (
     SandboxSecurityError,
 )
 
-
 _FIXTURES = Path(__file__).parent / "fixtures" / "preflight"
 
 
@@ -207,9 +206,10 @@ def test_preflight_pyproject_fixture_preserves_runtime_and_optional_evidence(
     inspection = evidence["inspection"]
     assert inspection["python_constraints"] == [">=3.10,<3.12"]
     assert inspection["optional_package_requirements"][0]["name"] == "torch"
-    assert "optional" in result.artifact_paths.environment_report.read_text(
-        encoding="utf-8"
-    ).lower()
+    assert (
+        "optional"
+        in result.artifact_paths.environment_report.read_text(encoding="utf-8").lower()
+    )
 
 
 def test_preflight_malformed_dependency_is_partial_not_ready(tmp_path: Path) -> None:
@@ -324,9 +324,7 @@ def test_preflight_clone_failure_writes_unverified_artifacts(tmp_path: Path) -> 
     assert "secret" not in str(error.value)
     artifact_dirs = [path for path in (tmp_path / "runs").iterdir() if path.is_dir()]
     assert len(artifact_dirs) == 1
-    evidence = json.loads(
-        (artifact_dirs[0] / "environment-evidence.json").read_text()
-    )
+    evidence = json.loads((artifact_dirs[0] / "environment-evidence.json").read_text())
     assert evidence["commit_sha"] is None
     assert evidence["verified_environment"] is False
     assert "Git failed" in evidence["failure"]["detail"]

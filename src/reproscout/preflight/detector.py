@@ -120,9 +120,11 @@ def _pyproject_requirements(
         if isinstance(dependencies, list):
             values.extend(item for item in dependencies if isinstance(item, str))
             if not all(isinstance(item, str) for item in dependencies):
-                return [], [], [
-                    f"{source}: project.dependencies contains a non-string value"
-                ]
+                return (
+                    [],
+                    [],
+                    [f"{source}: project.dependencies contains a non-string value"],
+                )
         elif dependencies is not None:
             return [], [], [f"{source}: project.dependencies is not a string list"]
         dynamic = project.get("dynamic")
@@ -132,30 +134,36 @@ def _pyproject_requirements(
         if isinstance(optional_dependencies, dict):
             for group, group_values in optional_dependencies.items():
                 if not isinstance(group, str) or not isinstance(group_values, list):
-                    return [], [], [
-                        f"{source}: optional-dependencies group is not a string list"
-                    ]
+                    return (
+                        [],
+                        [],
+                        [f"{source}: optional-dependencies group is not a string list"],
+                    )
                 if not all(isinstance(item, str) for item in group_values):
-                    return [], [], [
-                        (
-                            f"{source}: optional-dependencies group {group!r} "
-                            "contains a non-string requirement"
-                        )
-                    ]
+                    return (
+                        [],
+                        [],
+                        [
+                            (
+                                f"{source}: optional-dependencies group {group!r} "
+                                "contains a non-string requirement"
+                            )
+                        ],
+                    )
                 optional_values.extend(group_values)
         elif optional_dependencies is not None:
-            return [], [], [
-                f"{source}: project.optional-dependencies is not a table"
-            ]
+            return [], [], [f"{source}: project.optional-dependencies is not a table"]
     build_system = data.get("build-system")
     if isinstance(build_system, dict):
         requires = build_system.get("requires")
         if isinstance(requires, list):
             values.extend(item for item in requires if isinstance(item, str))
             if not all(isinstance(item, str) for item in requires):
-                return [], [], [
-                    f"{source}: build-system.requires contains a non-string value"
-                ]
+                return (
+                    [],
+                    [],
+                    [f"{source}: build-system.requires contains a non-string value"],
+                )
         elif requires is not None:
             return [], [], [f"{source}: build-system.requires is not a string list"]
     required, required_errors = _requirement_records(values, source=source)

@@ -156,9 +156,7 @@ def _resolve_environment(builder: _AnalysisBuilder) -> ResolvedEnvironment:
         unresolved.append("Repository evidence specifies conflicting Python versions.")
     if saw_constraint and allowed_minors:
         selected_minor = (
-            min(allowed_minors)
-            if prefer_lowest_supported
-            else max(allowed_minors)
+            min(allowed_minors) if prefer_lowest_supported else max(allowed_minors)
         )
         python_version = f"3.{selected_minor}"
     else:

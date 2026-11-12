@@ -387,9 +387,7 @@ def test_detector_preserves_optional_pyproject_requirements(tmp_path: Path) -> N
     inspection = inspect_environment(manifest, _analysis())
 
     assert [item.name for item in inspection.package_requirements] == ["requests"]
-    assert [item.name for item in inspection.optional_package_requirements] == [
-        "torch"
-    ]
+    assert [item.name for item in inspection.optional_package_requirements] == ["torch"]
     assert any(item.optional for item in inspection.requirements)
 
 
