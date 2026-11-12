@@ -8,9 +8,7 @@
 <h1 align="center">ReproScout</h1>
 
 <p align="center">
-  <strong>Research Environment Verification</strong>
-<p align="center">
-  <strong>Verify the environment before reproducing the research.</strong>
+  <strong>Verify research environments before reproducing results.</strong>
 </p>
 
 <p align="center">
@@ -22,15 +20,11 @@
 </p>
 
 
-ReproScout prepares researchers to investigate an open-source project by checking its documented Python environment, dependencies, and setup constraints in a bounded Docker sandbox. It produces evidence-backed readiness artifacts for a researcher or coding agent before any scientific experiment is attempted.
-
-Environment readiness is not a claim that a paper result, model, benchmark, or experiment has been reproduced.
-
 ## Overview
 
-ReproScout is a Python-first reproducibility preflight tool for public research repositories. Its default workflow is deliberately conservative: it analyzes setup material, performs permitted lightweight environment work, and records what was actually observed. It does not automatically train models, run evaluations, or execute arbitrary repository scripts.
+ReproScout is an open-source Python tool that helps researchers and coding agents prepare to reproduce research projects. It inspects repository requirements, analyzes dependencies, and verifies environment setup in a bounded Docker sandbox. Before any scientific experiment begins, it generates evidence-backed reports showing what worked, what failed, and what needs attention.
 
-The separate `audit` workflow is an explicit, bounded route for target-workflow execution. It remains distinct from the default environment-preflight path.
+By default, ReproScout focuses on environment readiness rather than executing experiments. Running tests or project-specific workflows requires an explicit, bounded `audit`. **A ready environment does not mean the research results have been reproduced.**
 
 ## Features
 
