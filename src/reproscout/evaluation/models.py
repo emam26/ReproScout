@@ -42,6 +42,7 @@ class EvaluationCase(DiagnosticModel):
     """One frozen benchmark contract, not an observed run result."""
 
     case_id: str = Field(pattern=r"^eval-[0-9]{3}$")
+    scenario_id: str | None = Field(default=None, pattern=r"^S[0-9]{2}$")
     name: str = Field(min_length=1, max_length=100)
     source: EvaluationSource
     fixture_path: str = Field(min_length=1, max_length=300)

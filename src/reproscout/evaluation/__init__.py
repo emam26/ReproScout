@@ -31,6 +31,12 @@ from .results import (
     StageEvaluationMetric,
 )
 from .runner import EvaluationError, EvaluationRunner, evaluate_observations
+from .scenarios import (
+    ScenarioDefinition,
+    ScenarioMatrix,
+    ScenarioRunState,
+    load_scenario_matrix,
+)
 
 __all__ = [
     "AblationDefinition",
@@ -57,11 +63,15 @@ __all__ = [
     "EvaluationSource",
     "EvaluationStage",
     "RemovedCapability",
+    "ScenarioDefinition",
+    "ScenarioMatrix",
+    "ScenarioRunState",
     "StageEvaluationMetric",
     "compare_evaluation_reports",
     "default_evaluation_protocol",
     "evaluate_observations",
     "load_benchmark_manifest",
     "load_evaluation_set",
+    "load_scenario_matrix",
     "run_benchmark",
 ]

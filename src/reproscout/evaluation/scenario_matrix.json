@@ -1,0 +1,26 @@
+{
+  "schema_version": "1.0",
+  "name": "reproscout-v1-scenario-matrix",
+  "scenarios": [
+    {"scenario_id":"S01","name":"minimal-python","description":"Minimal Python repository.","case_id":"eval-001","state":"NOT_RUN"},
+    {"scenario_id":"S02","name":"requirements-file","description":"Valid requirements.txt dependency declaration.","state":"NOT_RUN","notes":"Add a controlled fixture before execution."},
+    {"scenario_id":"S03","name":"pyproject","description":"Valid pyproject.toml dependency declaration.","case_id":"eval-003","state":"NOT_RUN"},
+    {"scenario_id":"S04","name":"optional-groups","description":"Optional dependency groups are detected without being installed by default.","state":"NOT_RUN","notes":"Add a controlled fixture before execution."},
+    {"scenario_id":"S05","name":"missing-dependency","description":"A required Python dependency is missing.","case_id":"eval-005","state":"NOT_RUN"},
+    {"scenario_id":"S06","name":"dependency-conflict","description":"Declared dependency constraints conflict.","case_id":"eval-006","state":"NOT_RUN"},
+    {"scenario_id":"S07","name":"invalid-requirement","description":"Requirement syntax is invalid.","state":"NOT_RUN","notes":"Add a controlled fixture before execution."},
+    {"scenario_id":"S08","name":"python-version","description":"The declared Python version is unsupported.","case_id":"eval-007","state":"NOT_RUN"},
+    {"scenario_id":"S09","name":"missing-system-tool","description":"A required system executable is unavailable.","state":"NOT_RUN","notes":"Add a controlled fixture before execution."},
+    {"scenario_id":"S10","name":"installation-failure","description":"Permitted dependency installation fails.","state":"NOT_RUN","notes":"Add a controlled fixture before execution."},
+    {"scenario_id":"S11","name":"network-unavailable","description":"A network-dependent operation is denied.","case_id":"eval-009","state":"NOT_RUN"},
+    {"scenario_id":"S12","name":"invalid-github-url","description":"Repository URL validation rejects an invalid URL.","state":"NOT_RUN","notes":"Covered by API and CLI validation tests; no fixture execution is needed."},
+    {"scenario_id":"S13","name":"inaccessible-repository","description":"Repository intake cannot access the requested repository.","state":"NOT_RUN","notes":"Requires a manual or mocked intake failure record."},
+    {"scenario_id":"S14","name":"missing-project-files","description":"Required project files are absent.","state":"NOT_RUN","notes":"Add a controlled fixture before execution."},
+    {"scenario_id":"S15","name":"unsafe-readme","description":"README setup instructions contain an unsafe command.","state":"NOT_RUN","notes":"Covered by safety-policy tests; add an explicit matrix observation."},
+    {"scenario_id":"S16","name":"suspicious-command","description":"A malicious or suspicious setup command is rejected.","case_id":"eval-016","state":"NOT_RUN"},
+    {"scenario_id":"S17","name":"docker-timeout","description":"A permitted Docker command exceeds its timeout.","case_id":"eval-015","state":"NOT_RUN"},
+    {"scenario_id":"S18","name":"docker-initialization-failure","description":"Docker sandbox initialization fails before command execution.","state":"NOT_RUN","notes":"Covered by Docker regression tests; add an explicit matrix observation."},
+    {"scenario_id":"S19","name":"partial-environment","description":"Only part of the requested environment can be verified.","case_id":"eval-013","state":"NOT_RUN"},
+    {"scenario_id":"S20","name":"verified-environment","description":"All permitted environment checks complete with verified evidence.","state":"NOT_RUN","notes":"Requires owner-run Docker evidence."}
+  ]
+}
