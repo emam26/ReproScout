@@ -9,8 +9,6 @@
 
 <p align="center">
   <strong>Research Environment Verification</strong>
-</p>
-
 <p align="center">
   <strong>Verify the environment before reproducing the research.</strong>
 </p>
