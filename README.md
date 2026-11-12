@@ -8,8 +8,6 @@
 
 [![ReproScout version](https://img.shields.io/badge/ReproScout-0.1.0-0F766E)](#overview)
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Docker](https://img.shields.io/badge/Docker-isolated%20execution-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
-[![FastAPI](https://img.shields.io/badge/FastAPI-optional%20local%20API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
 [![React](https://img.shields.io/badge/React-local%20dashboard-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Typer](https://img.shields.io/badge/Typer-Python%20CLI-3776AB)](https://typer.tiangolo.com/)
 [![CI](https://github.com/emam26/ReproScout/actions/workflows/ci.yml/badge.svg)](https://github.com/emam26/ReproScout/actions/workflows/ci.yml)
