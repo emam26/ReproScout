@@ -35,6 +35,7 @@ from reproscout.diagnostics import EvidenceBuilder, normalize_failure
 from reproscout.diagnostics.verification import contract_from_plan
 from reproscout.execution import ExecutionRunResult, PlanExecutionEngine
 from reproscout.llm import LLMError, LLMProvider, create_provider, get_llm_settings
+from reproscout.onboarding import doctor_report as onboarding_doctor_report
 from reproscout.planning import ReproductionPlan, ReproductionPlanner
 from reproscout.preflight import (
     PreflightArtifactWriter,
@@ -62,7 +63,7 @@ from reproscout.reporting import (
     RunReport,
     RunReportWriter,
 )
-from reproscout.sandbox import SandboxError, check_docker_available
+from reproscout.sandbox import SandboxError
 from reproscout.security import (
     BoundedReadError,
     read_bounded_workspace_text,
@@ -842,18 +843,13 @@ def doctor_report(*, runs_dir: Path | None = None) -> dict[str, object]:
         or (provider == "gemini" and settings.gemini_api_key is not None)
         or (provider == "groq" and settings.groq_api_key is not None)
     )
-    docker: dict[str, object]
-    try:
-        available = check_docker_available()
-        docker = {"available": True, "server_version": available.server_version}
-    except SandboxError as exc:
-        docker = {"available": False, "error": redact_sensitive_text(str(exc))[:500]}
+    onboarding = onboarding_doctor_report()
     resolved_runs_dir = (runs_dir or get_settings().runs_dir).expanduser().resolve()
     return {
+        **onboarding,
         "python": platform.python_version(),
         "platform": platform.platform(),
         "git_available": shutil.which("git") is not None,
-        "docker": docker,
         "runs_dir": str(resolved_runs_dir),
         "runs_dir_writable": os.access(
             resolved_runs_dir

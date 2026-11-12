@@ -951,6 +951,39 @@ Run the focused and full offline tests, Ruff checks, and Docker preflight
 fixtures. Mark this phase DONE only after those checks pass in the user's
 environment.
 
+# Phase 25 — Terminal Runtime Onboarding
+
+**Status: INCOMPLETE — implementation added; host-platform verification remains user-run**
+
+## Goal
+
+Give Windows and macOS users a small terminal-only path to diagnose and,
+with explicit consent, prepare a compatible Docker runtime while preserving
+the existing sandbox boundary.
+
+## Build
+
+* read-only `doctor` evidence for host, Docker daemon/context, capacity,
+  runtime compatibility, security controls, and remediation;
+* consent-gated `setup` plans using only trusted Windows package-manager or
+  Homebrew/Colima commands;
+* bounded installer diagnostics, restart/administrative/unsupported states,
+  repeatable setup, and objective post-setup sandbox probing;
+* offline mocked coverage for platform strategies, endpoint selection,
+  installer/runtime failures, security capability failures, consent, and CLI
+  exit behavior.
+
+The current Docker sandbox remains the authority for non-root workspace access.
+Native Windows/macOS ownership behavior is reported as unverified when that
+contract cannot be proven locally; setup never weakens it.
+
+## Acceptance Criteria
+
+Run the offline tests and Ruff checks, then manually verify `doctor`, dry-run
+setup, consented setup, and Docker-backed sandbox readiness on supported
+Windows, macOS, and Linux/WSL configurations. Do not mark this phase DONE
+until those platform checks are supplied.
+
 ---
 
 # Current Next Action
@@ -959,7 +992,8 @@ The historical summary below predates the pre-release phases above; the phase
 statuses in this section are authoritative.
 
 Phase 20–23 acceptance criteria have passed. Phase 24 implementation is
-present; user-run verification is the next action.
+present. Phase 25 implementation is present; user-run verification is the
+next action.
 
 ```text
 Phase 14 → DONE
@@ -973,4 +1007,5 @@ Phase 21 → DONE
 Phase 22 → DONE
 Phase 23 → DONE
 Phase 24 → INCOMPLETE
+Phase 25 → INCOMPLETE
 ```

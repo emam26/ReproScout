@@ -11,6 +11,7 @@ import pytest
 
 import reproscout.sandbox.docker as docker_module
 from reproscout.sandbox import (
+    DockerCliUnavailableError,
     DockerCommandError,
     DockerSandbox,
     ResourceLimits,
@@ -416,6 +417,49 @@ def test_preferred_docker_command_is_preserved() -> None:
         "-e",
         "docker",
     )
+
+
+def test_wsl_docker_fallback_requires_a_docker_cli(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(docker_module.os, "name", "nt")
+    monkeypatch.setattr(
+        docker_module.shutil,
+        "which",
+        lambda name: "wsl.exe" if name == "wsl.exe" else None,
+    )
+    monkeypatch.setattr(
+        docker_module.subprocess,
+        "run",
+        lambda *args, **kwargs: subprocess.CompletedProcess(
+            args[0], 1, stdout=None, stderr=None
+        ),
+    )
+
+    with pytest.raises(DockerCliUnavailableError):
+        resolve_docker_command()
+
+
+def test_wsl_docker_fallback_is_selected_after_cli_probe(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(docker_module.os, "name", "nt")
+    monkeypatch.setattr(
+        docker_module.shutil,
+        "which",
+        lambda name: "wsl.exe" if name == "wsl.exe" else None,
+    )
+    calls: list[tuple[tuple[object, ...], dict[str, object]]] = []
+
+    def fake_run(*args, **kwargs):  # type: ignore[no-untyped-def]
+        calls.append((args, kwargs))
+        return subprocess.CompletedProcess(args[0], 0, stdout=None, stderr=None)
+
+    monkeypatch.setattr(docker_module.subprocess, "run", fake_run)
+
+    assert resolve_docker_command() == ("wsl.exe", "-e", "docker")
+    assert calls[0][0][0] == ["wsl.exe", "-e", "docker", "--version"]
+    assert calls[0][1]["shell"] is False
 
 
 @pytest.fixture(scope="session")
