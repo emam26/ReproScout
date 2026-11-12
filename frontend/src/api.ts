@@ -1,7 +1,9 @@
 import type {
   AuditResult,
   ConfigStatus,
+  EnvironmentEvidence,
   EventRecord,
+  PreflightResult,
   ReportResponse,
   RunDetail,
   RunSummary,
@@ -62,12 +64,43 @@ export function getReport(runId: string): Promise<ReportResponse> {
   );
 }
 
+export function getEnvironmentReport(runId: string): Promise<ReportResponse> {
+  return requestJson<ReportResponse>(
+    `/api/v1/runs/${encodeURIComponent(runId)}/environment-report`,
+  );
+}
+
+export function getAgentHandoff(runId: string): Promise<ReportResponse> {
+  return requestJson<ReportResponse>(
+    `/api/v1/runs/${encodeURIComponent(runId)}/agent-handoff`,
+  );
+}
+
+export function getEnvironmentEvidence(
+  runId: string,
+): Promise<EnvironmentEvidence> {
+  return requestJson<EnvironmentEvidence>(
+    `/api/v1/runs/${encodeURIComponent(runId)}/environment-evidence`,
+  );
+}
+
 export function startAudit(input: {
   repository_url: string;
   goal: string;
   no_ai: boolean;
 }): Promise<AuditResult> {
   return requestJson<AuditResult>("/api/v1/audits", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(input),
+  });
+}
+
+export function startPreflight(input: {
+  repository_url: string;
+  no_ai: boolean;
+}): Promise<PreflightResult> {
+  return requestJson<PreflightResult>("/api/v1/preflights", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(input),
@@ -84,12 +117,19 @@ export function statusTone(status: string | null | undefined):
     case "REPRODUCED":
       return "success";
     case "PARTIAL":
+    case "INCOMPLETE":
+    case "UNVERIFIED":
       return "partial";
     case "BLOCKED":
       return "blocked";
     case "FAILED":
     case "UNSAFE":
+    case "INCOMPATIBLE":
+    case "INSTALLATION_FAILED":
+    case "MISSING_PREREQUISITES":
       return "danger";
+    case "READY":
+      return "success";
     default:
       return "neutral";
   }

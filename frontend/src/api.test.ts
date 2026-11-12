@@ -9,6 +9,9 @@ describe("status mapping", () => {
     ["BLOCKED", "blocked"],
     ["FAILED", "danger"],
     ["UNSAFE", "danger"],
+    ["READY", "success"],
+    ["UNVERIFIED", "partial"],
+    ["MISSING_PREREQUISITES", "danger"],
     ["RUNNING", "neutral"],
   ])("maps %s to %s", (status, tone) => {
     expect(statusTone(status)).toBe(tone);

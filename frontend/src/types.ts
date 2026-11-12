@@ -38,6 +38,25 @@ export type ReportResponse = {
   content: string;
 };
 
+export type EnvironmentEvidence = {
+  run_id: string;
+  evidence: Record<string, unknown>;
+};
+
+export type PreflightResult = {
+  run_id: string;
+  repository: string;
+  commit_sha: string;
+  status: string;
+  verified_environment: boolean;
+  artifact_paths: {
+    run_directory: string;
+    environment_report: string;
+    environment_evidence: string;
+    agent_handoff: string;
+  };
+};
+
 export type ConfigStatus = {
   python: string;
   platform: string;
