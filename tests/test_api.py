@@ -9,10 +9,13 @@ from reproscout.api import create_app
 from reproscout.application import (
     AuditRequest,
     AuditResult,
+    PreflightRequest,
+    PreflightResult,
     ReproductionResult,
     ServiceError,
 )
 from reproscout.diagnostics.models import VerificationTargetType
+from reproscout.preflight import PreflightArtifactPaths, PreflightStatus
 from reproscout.state import EventType, SQLiteRunStore, Stage
 from reproscout.status import compute_reproduction_status
 from reproscout.verification import (
@@ -31,6 +34,7 @@ class StubAuditService:
         self.runs_dir.mkdir(parents=True)
         self.database_path = self.runs_dir / "state.sqlite3"
         self.audit_calls: list[AuditRequest] = []
+        self.preflight_calls: list[PreflightRequest] = []
         self.reproduce_calls: list[str] = []
         self.fail_audit = False
         self._create_fixture_run()
@@ -58,6 +62,17 @@ class StubAuditService:
         (run_dir / "run.json").write_text(
             json.dumps({"message": "API_KEY=fixture-secret"}), encoding="utf-8"
         )
+        (run_dir / "environment-report.md").write_text(
+            "# Environment\n\nAuthorization: Bearer fixture-secret\n",
+            encoding="utf-8",
+        )
+        (run_dir / "agent-handoff.md").write_text(
+            "# Handoff\n\nTOKEN=fixture-secret\n", encoding="utf-8"
+        )
+        (run_dir / "environment-evidence.json").write_text(
+            json.dumps({"status": "UNVERIFIED", "token": "fixture-secret"}),
+            encoding="utf-8",
+        )
 
     def audit(self, request: AuditRequest) -> AuditResult:
         self.audit_calls.append(request)
@@ -73,6 +88,24 @@ class StubAuditService:
             attempts=0,
             repairs=0,
             report_path=self.runs_dir / "api-run" / "report.md",
+        )
+
+    def preflight(self, request: PreflightRequest) -> PreflightResult:
+        self.preflight_calls.append(request)
+        return PreflightResult(
+            run_id="api-run",
+            repository="example/project",
+            commit_sha="a" * 40,
+            status=PreflightStatus.UNVERIFIED,
+            verified_environment=False,
+            artifact_paths=PreflightArtifactPaths(
+                run_directory=self.runs_dir / "api-run",
+                environment_report=self.runs_dir / "api-run" / "environment-report.md",
+                environment_evidence=self.runs_dir
+                / "api-run"
+                / "environment-evidence.json",
+                agent_handoff=self.runs_dir / "api-run" / "agent-handoff.md",
+            ),
         )
 
     def reproduce(self, run_id: str) -> ReproductionResult:
@@ -172,6 +205,30 @@ def test_api_audit_validation_and_core_translation(tmp_path: Path) -> None:
     )
     assert translated.status_code == 400
     assert translated.json() == {"detail": "controlled audit failure"}
+
+
+def test_api_preflight_and_bounded_artifacts(tmp_path: Path) -> None:
+    service = StubAuditService(tmp_path / "runs")
+    client = TestClient(create_app(service.runs_dir, service=service))
+
+    created = client.post(
+        "/api/v1/preflights",
+        json={"repository_url": "https://github.com/example/project"},
+    )
+    assert created.status_code == 201
+    assert created.json()["status"] == "UNVERIFIED"
+    assert service.preflight_calls[0].no_ai is True
+
+    report = client.get("/api/v1/runs/api-run/environment-report")
+    handoff = client.get("/api/v1/runs/api-run/agent-handoff")
+    evidence = client.get("/api/v1/runs/api-run/environment-evidence")
+    assert report.status_code == 200
+    assert handoff.status_code == 200
+    assert evidence.status_code == 200
+    assert "fixture-secret" not in report.text
+    assert "fixture-secret" not in handoff.text
+    assert "fixture-secret" not in evidence.text
+    assert evidence.json()["evidence"]["status"] == "UNVERIFIED"
 
 
 def test_api_runs_detail_events_report_and_secret_redaction(tmp_path: Path) -> None:

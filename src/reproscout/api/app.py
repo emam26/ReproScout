@@ -16,6 +16,8 @@ from reproscout.application import (
     AuditRequest,
     AuditResult,
     AuditService,
+    PreflightRequest,
+    PreflightResult,
     ReproductionResult,
     ServiceError,
     doctor_report,
@@ -91,6 +93,13 @@ class ReportResponse(BaseModel):
     content: str
 
 
+class EvidenceResponse(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    run_id: str
+    evidence: dict[str, Any]
+
+
 class ErrorResponse(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -151,6 +160,24 @@ def create_app(
         except ServiceError as exc:
             raise HTTPException(status_code=400, detail=str(exc)) from exc
 
+    @router.post(
+        "/preflights",
+        response_model=PreflightResult,
+        responses={400: {"model": ErrorResponse}},
+        status_code=status.HTTP_201_CREATED,
+    )
+    @router.post(
+        "/preflight",
+        response_model=PreflightResult,
+        responses={400: {"model": ErrorResponse}},
+        status_code=status.HTTP_201_CREATED,
+    )
+    def create_preflight(request: PreflightRequest) -> PreflightResult:
+        try:
+            return audit_service.preflight(request)
+        except ServiceError as exc:
+            raise HTTPException(status_code=400, detail=str(exc)) from exc
+
     @router.get("/runs", response_model=list[RunSummary])
     def list_runs() -> list[RunSummary]:
         try:
@@ -207,14 +234,81 @@ def create_app(
         if not path.is_file():
             raise HTTPException(status_code=404, detail="Report not found.")
         try:
-            content = path.read_text(encoding="utf-8")[:_MAX_REPORT_CHARACTERS]
+            content = _read_bounded_text(path)
         except OSError as exc:
             raise HTTPException(
                 status_code=500, detail="Report is unavailable."
             ) from exc
+        if len(content) > _MAX_REPORT_CHARACTERS:
+            raise HTTPException(status_code=413, detail="Report is too large.")
         return ReportResponse(
             run_id=run_id,
             content=redact_sensitive_text(content),
+        )
+
+    @router.get(
+        "/runs/{run_id}/environment-report",
+        response_model=ReportResponse,
+        responses={404: {"model": ErrorResponse}},
+    )
+    def get_environment_report(run_id: str) -> ReportResponse:
+        return _read_text_artifact(
+            audit_service.runs_dir,
+            run_id,
+            "environment-report.md",
+            "Environment report not found.",
+        )
+
+    @router.get(
+        "/runs/{run_id}/agent-handoff",
+        response_model=ReportResponse,
+        responses={404: {"model": ErrorResponse}},
+    )
+    def get_agent_handoff(run_id: str) -> ReportResponse:
+        return _read_text_artifact(
+            audit_service.runs_dir,
+            run_id,
+            "agent-handoff.md",
+            "Agent handoff not found.",
+        )
+
+    @router.get(
+        "/runs/{run_id}/environment-evidence",
+        response_model=EvidenceResponse,
+        responses={404: {"model": ErrorResponse}},
+    )
+    def get_environment_evidence(run_id: str) -> EvidenceResponse:
+        _validate_run_id(run_id)
+        path = _safe_run_path(
+            audit_service.runs_dir, run_id, "environment-evidence.json"
+        )
+        if not path.is_file():
+            raise HTTPException(
+                status_code=404, detail="Environment evidence not found."
+            )
+        try:
+            evidence_text = _read_bounded_text(path)
+        except OSError as exc:
+            raise HTTPException(
+                status_code=500, detail="Environment evidence is unavailable."
+            ) from exc
+        if len(evidence_text) > _MAX_REPORT_CHARACTERS:
+            raise HTTPException(
+                status_code=413, detail="Environment evidence is too large."
+            )
+        try:
+            parsed = json.loads(evidence_text)
+        except json.JSONDecodeError as exc:
+            raise HTTPException(
+                status_code=500, detail="Environment evidence is unavailable."
+            ) from exc
+        if not isinstance(parsed, dict):
+            raise HTTPException(
+                status_code=500, detail="Environment evidence is invalid."
+            )
+        return EvidenceResponse(
+            run_id=run_id,
+            evidence=_safe_value(parsed),
         )
 
     @router.post(
@@ -299,12 +393,29 @@ def _store_or_404(service: AuditService) -> SQLiteRunStore:
 
 
 def _summary(root: Path, state: RunState) -> RunSummary:
-    report = (root / state.run_id / "report.md").is_file()
+    run_directory = root / state.run_id
+    report = False
+    if run_directory.is_dir() and not run_directory.is_symlink():
+        report = any(
+            (run_directory / filename).is_file()
+            and not (run_directory / filename).is_symlink()
+            for filename in (
+                "report.md",
+                "environment-report.md",
+                "environment-evidence.json",
+                "agent-handoff.md",
+            )
+        )
+    context = dict(state.context)
+    if context.get("workflow") == "environment-preflight":
+        preflight_status = _read_preflight_status(root, state.run_id)
+        if preflight_status is not None:
+            context["preflight_status"] = preflight_status
     return RunSummary(
         run_id=state.run_id,
         stage=state.stage.value,
         outcome=state.outcome.value if state.outcome else None,
-        context=_safe_value(dict(state.context)),
+        context=_safe_value(context),
         created_at=state.created_at.isoformat(),
         updated_at=state.updated_at.isoformat(),
         report_available=report,
@@ -327,10 +438,59 @@ def _read_run_json(root: Path, run_id: str) -> dict[str, Any] | None:
     if not path.is_file():
         return None
     try:
-        parsed = json.loads(path.read_text(encoding="utf-8"))
+        content = _read_bounded_text(path)
+        if len(content) > _MAX_REPORT_CHARACTERS:
+            return None
+        parsed = json.loads(content)
     except (OSError, json.JSONDecodeError):
         return None
     return _safe_value(parsed)
+
+
+def _read_preflight_status(root: Path, run_id: str) -> str | None:
+    if not _SAFE_RUN_ID.fullmatch(run_id):
+        return None
+    run_directory = root / run_id
+    if run_directory.is_symlink() or not run_directory.is_dir():
+        return None
+    path = run_directory / "environment-evidence.json"
+    if path.is_symlink() or not path.is_file():
+        return None
+    try:
+        content = _read_bounded_text(path)
+        if len(content) > _MAX_REPORT_CHARACTERS:
+            return None
+        evidence = json.loads(content)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(evidence, dict):
+        return None
+    status_value = evidence.get("status")
+    return status_value if isinstance(status_value, str) else None
+
+
+def _read_bounded_text(path: Path) -> str:
+    with path.open("r", encoding="utf-8") as handle:
+        return handle.read(_MAX_REPORT_CHARACTERS + 1)
+
+
+def _read_text_artifact(
+    root: Path,
+    run_id: str,
+    filename: str,
+    missing_detail: str,
+) -> ReportResponse:
+    _validate_run_id(run_id)
+    path = _safe_run_path(root, run_id, filename)
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail=missing_detail)
+    try:
+        content = _read_bounded_text(path)
+    except OSError as exc:
+        raise HTTPException(status_code=500, detail="Artifact is unavailable.") from exc
+    if len(content) > _MAX_REPORT_CHARACTERS:
+        raise HTTPException(status_code=413, detail="Artifact is too large.")
+    return ReportResponse(run_id=run_id, content=redact_sensitive_text(content))
 
 
 def _safe_value(value: Any) -> Any:
