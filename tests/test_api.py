@@ -5,7 +5,7 @@ from pathlib import Path
 
 from fastapi.testclient import TestClient
 
-from reproscout.api import create_app
+from reproscout.api import create_app, run_server
 from reproscout.application import (
     AuditRequest,
     AuditResult,
@@ -141,14 +141,32 @@ class StubAuditService:
         )
 
 
-def test_api_health_version_and_openapi(tmp_path: Path) -> None:
+def test_api_health_version_and_openapi(tmp_path: Path, monkeypatch) -> None:
     service = StubAuditService(tmp_path / "runs")
+
+    def doctor_must_not_run(*, runs_dir: Path) -> dict[str, object]:
+        del runs_dir
+        raise AssertionError("health must not inspect Docker")
+
+    monkeypatch.setattr(
+        "reproscout.api.app.doctor_report",
+        doctor_must_not_run,
+    )
     client = TestClient(create_app(service.runs_dir, service=service))
 
     assert client.get("/api/v1/health").json()["status"] == "ok"
     assert client.get("/health").status_code == 200
     assert client.get("/api/v1/version").json()["version"] == "0.1.0"
     assert client.get("/openapi.json").status_code == 200
+
+
+def test_server_rejects_non_loopback_bind_address() -> None:
+    try:
+        run_server(host="0.0.0.0")
+    except ValueError as exc:
+        assert "loopback" in str(exc)
+    else:
+        raise AssertionError("Expected a non-loopback API bind to be rejected.")
 
 
 def test_api_config_reports_secret_free_runtime_status(
@@ -161,7 +179,15 @@ def test_api_config_reports_secret_free_runtime_status(
             "python": "3.12.0",
             "platform": "test-platform",
             "git_available": True,
-            "docker": {"available": False, "error": "daemon unavailable"},
+            "docker": {
+                "available": False,
+                "daemon_running": True,
+                "context_verified": False,
+                "server_version": "27.0",
+                "error": "daemon unavailable",
+                "command": ["docker", "--context", "secret-context"],
+                "sandbox_security": {"seccomp": "unverified"},
+            },
             "runs_dir": str(runs_dir),
             "runs_dir_writable": True,
             "llm_provider": "mock",
@@ -175,6 +201,10 @@ def test_api_config_reports_secret_free_runtime_status(
     assert response.status_code == 200
     payload = response.json()
     assert payload["docker"]["available"] is False
+    assert payload["docker"]["daemon_running"] is True
+    assert payload["docker"]["context_verified"] is False
+    assert payload["docker"]["seccomp"] == "unverified"
+    assert "command" not in payload["docker"]
     assert payload["llm_configured"] is True
     assert payload["runs_dir"] == str(service.runs_dir.resolve())
     assert "api_key" not in response.text.lower()

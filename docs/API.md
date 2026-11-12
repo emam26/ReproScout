@@ -4,15 +4,29 @@ The optional API is a local development/control interface over the same
 application service used by the CLI. Install it with:
 
 ```bash
-pip install -e ".[api]"
+python -m pip install -e ".[api]"
 reproscout serve
 ```
 
-The server binds to `127.0.0.1:8000` by default. It is not a hardened
-multi-tenant public execution service. Do not expose it to the public Internet
-or place secrets in request bodies. No endpoint accepts arbitrary shell
+For an existing editable `uv tool` installation, reinstall with the optional
+extra rather than assuming it was included:
+
+```bash
+uv tool install --reinstall --editable ".[api]"
+reproscout serve
+```
+
+The server binds only to `127.0.0.1` or `::1` (`127.0.0.1:8000` by default).
+It is not a hardened multi-tenant public execution service. Do not expose it
+to the public Internet or place secrets in request bodies. No endpoint accepts arbitrary shell
 commands, arbitrary host paths, API keys, authorization headers, or private
 environment values.
+
+`GET /api/v1/health` answers only whether this local FastAPI process is
+available. It does not run Docker checks and does not establish sandbox
+readiness. Use `GET /api/v1/config` for the current, secret-free Docker
+capability facts; a preflight or explicit `reproscout setup` probe records
+actual sandbox execution evidence.
 
 Versioned endpoints:
 
@@ -47,9 +61,10 @@ return bounded, redacted content from that run; they do not accept arbitrary
 filenames or host paths.
 
 `GET /api/v1/config` returns secret-free local capability status for the
-dashboard: Python and platform facts, Git availability, Docker availability,
-the configured runs directory and writeability, and the selected LLM provider
-with only a boolean configured flag. It never returns credential values.
+dashboard: Python and platform facts, Git availability, Docker daemon/context/
+seccomp capability facts, the configured runs directory and writeability, and
+the selected LLM provider with only a boolean configured flag. It never returns
+credential values or Docker command/context endpoint details.
 
 `POST /api/v1/runs/{run_id}/reproduce` is backed by the persisted `plan.json`
 and source workspace created by an audit. It replays that plan in a newly copied

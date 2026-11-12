@@ -4,7 +4,22 @@ The dashboard is a small Vite/React/TypeScript application in `frontend/`. It
 is intended for local use with the API. The public site is a separate static
 build mode from the same frontend and never connects to the local API.
 
-Install and validate it with:
+Start the optional local API first. The API is not included by a plain editable
+tool installation:
+
+```bash
+uv tool install --reinstall --editable ".[api]"
+reproscout serve
+```
+
+Or, in a development virtual environment:
+
+```bash
+python -m pip install -e ".[api]"
+reproscout serve
+```
+
+Then start the dashboard in a second terminal:
 
 ```bash
 cd frontend
@@ -16,8 +31,15 @@ npm run dev
 ```
 
 Vite serves the dashboard on `127.0.0.1:5173` and proxies `/api` to the local
-ReproScout API on `127.0.0.1:8000`. The production preview uses the same local
-proxy configuration. Start the API separately with `reproscout serve`.
+ReproScout API on `127.0.0.1:8000`. Open `http://127.0.0.1:5173` in the local
+browser. The production preview uses the same loopback-only proxy
+configuration.
+
+If the dashboard shows “API unavailable” or Vite reports a 502, verify that
+`reproscout serve` is still running and that the installation includes `.[api]`.
+This connection check is intentionally separate from Docker capability status:
+an API connection does not imply Docker or sandbox readiness. The dashboard
+does not substitute mock results when the API is offline.
 
 The dashboard supports:
 
@@ -29,7 +51,8 @@ The dashboard supports:
 * secret-free settings/config status for Docker, the LLM mode, Git, and the
   configured runs directory,
 * loading the bounded environment report, structured evidence, agent handoff, or
-  legacy report as escaped text.
+  legacy report as escaped text, and downloading those bounded artifacts as
+  text or JSON files.
 
 Repository content, logs, and report text are rendered through React text nodes;
 the dashboard does not use `dangerouslySetInnerHTML`. API keys are never sent

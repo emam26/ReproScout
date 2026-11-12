@@ -9,6 +9,7 @@ export default function PublicSite() {
       <header className="public-nav">
         <a className="brand" href="#top" aria-label="ReproScout home">ReproScout</a>
         <nav aria-label="Primary navigation">
+          <a href="#problem">Why preflight</a>
           <a href="#how-it-works">How it works</a>
           <a href="#features">Features</a>
           <a href="#installation">Install</a>
@@ -28,6 +29,15 @@ export default function PublicSite() {
           <a className="public-button secondary" href={repositoryUrl}>View source</a>
         </div>
         <p className="public-note">Environment preparation is the v1 boundary. ReproScout does not claim that a scientific result was reproduced.</p>
+      </section>
+
+      <section id="problem" className="public-section problem-section" aria-labelledby="problem-title">
+        <p className="eyebrow">THE PRACTICAL PROBLEM</p>
+        <h2 id="problem-title">Published code often arrives without a runnable environment.</h2>
+        <div className="problem-grid">
+          <p>Python constraints, system tools, package pins, private assets, and undocumented environment variables can block a clean setup before any scientific claim can be assessed.</p>
+          <p>ReproScout makes those constraints visible, records what was actually checked, and separates verified facts from unresolved risks.</p>
+        </div>
       </section>
 
       <section id="how-it-works" className="public-section" aria-labelledby="how-title">
@@ -58,7 +68,7 @@ export default function PublicSite() {
         <p className="eyebrow">START LOCALLY</p>
         <h2 id="install-title">Run the control surface on your machine.</h2>
         <p>ReproScout uses a local Python CLI, FastAPI control API, and Docker sandbox. The package is not published to PyPI yet.</p>
-        <pre><code>{"git clone https://github.com/emam26/ReproScout.git\ncd ReproScout\npython -m pip install -e \".[dev]\"\nreproscout doctor\nreproscout setup --dry-run"}</code></pre>
+        <pre><code>{"git clone https://github.com/emam26/ReproScout.git\ncd ReproScout\npython -m pip install -e \".[api]\"\nreproscout doctor\nreproscout preflight https://github.com/user/project"}</code></pre>
         <p className="public-note">Native Windows and macOS verification and public package publication remain pending. See the repository documentation for the current support matrix.</p>
         <a className="text-link" href={`${repositoryUrl}/blob/main/docs/CLI.md`}>Read the CLI guide</a>
       </section>

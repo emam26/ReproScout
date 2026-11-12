@@ -216,3 +216,26 @@ def test_preflight_non_ready_status_returns_failure_exit_code(
 
     assert result.exit_code == 1
     assert '"status": "INCOMPLETE"' in result.stdout
+
+
+def test_serve_explains_how_to_install_missing_optional_api_dependencies(
+    monkeypatch,
+) -> None:
+    def missing_uvicorn(**kwargs) -> None:  # type: ignore[no-untyped-def]
+        del kwargs
+        raise ModuleNotFoundError("No module named 'uvicorn'", name="uvicorn")
+
+    monkeypatch.setattr("reproscout.api.run_server", missing_uvicorn)
+
+    result = runner.invoke(app, ["serve"])
+
+    assert result.exit_code == 1
+    assert 'uv tool install --reinstall --editable ".[api]"' in result.stderr
+    assert "reproscout serve" in result.stderr
+
+
+def test_serve_rejects_non_loopback_hosts_before_startup() -> None:
+    result = runner.invoke(app, ["serve", "--host", "0.0.0.0"])
+
+    assert result.exit_code == 1
+    assert "loopback address" in result.stderr

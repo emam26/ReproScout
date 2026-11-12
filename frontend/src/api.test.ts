@@ -1,6 +1,17 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { ApiError, isTerminalStage, requestJson, statusTone } from "./api";
+import {
+  ApiError,
+  ApiUnavailableError,
+  isTerminalStage,
+  requestJson,
+  statusTone,
+} from "./api";
+import {
+  API_HEALTH_PATH,
+  API_PREFIX,
+  LOCAL_API_TARGET,
+} from "./apiConfig";
 
 describe("status mapping", () => {
   it.each([
@@ -23,8 +34,14 @@ describe("status mapping", () => {
   });
 });
 
-describe("API client", () => {
-  it("translates structured API errors", async () => {
+describe("local API contract", () => {
+  it("keeps the dashboard health path and loopback proxy target explicit", () => {
+    expect(API_PREFIX).toBe("/api/v1");
+    expect(API_HEALTH_PATH).toBe("/api/v1/health");
+    expect(LOCAL_API_TARGET).toBe("http://127.0.0.1:8000");
+  });
+
+  it("preserves structured backend error details", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(
@@ -35,16 +52,50 @@ describe("API client", () => {
     await expect(requestJson("/api/v1/runs/bad")).rejects.toEqual(
       new ApiError("unsafe input", 400),
     );
-    vi.unstubAllGlobals();
   });
 
-  it("rejects invalid JSON responses as an API failure rather than rendering them", async () => {
+  it("explains a proxy gateway failure when no local backend is available", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(new Response("bad gateway", { status: 502 })),
+    );
+
+    await expect(requestJson("/api/v1/health")).rejects.toBeInstanceOf(
+      ApiUnavailableError,
+    );
+  });
+
+  it("does not replace a meaningful gateway error from the backend", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ detail: "upstream diagnostic" }), {
+          status: 502,
+        }),
+      ),
+    );
+
+    await expect(requestJson("/api/v1/runs")).rejects.toEqual(
+      new ApiError("upstream diagnostic", 502),
+    );
+  });
+
+  it("treats transport failures as local API unavailability", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("offline")));
+
+    await expect(requestJson("/api/v1/health")).rejects.toBeInstanceOf(
+      ApiUnavailableError,
+    );
+  });
+
+  it("rejects invalid successful responses instead of rendering them", async () => {
     vi.stubGlobal(
       "fetch",
       vi.fn().mockResolvedValue(new Response("not-json", { status: 200 })),
     );
 
-    await expect(requestJson("/api/v1/runs")).resolves.toBeNull();
-    vi.unstubAllGlobals();
+    await expect(requestJson("/api/v1/runs")).rejects.toEqual(
+      new ApiError("The local API returned an invalid response.", 200),
+    );
   });
 });

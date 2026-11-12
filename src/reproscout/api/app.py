@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 from collections.abc import Mapping
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Any
 
@@ -43,6 +44,9 @@ class DockerStatus(BaseModel):
     available: bool
     server_version: str | None = None
     error: str | None = None
+    daemon_running: bool | None = None
+    context_verified: bool | None = None
+    seccomp: str | None = None
 
 
 class ConfigResponse(BaseModel):
@@ -144,8 +148,27 @@ def create_app(
 
     @router.get("/config", response_model=ConfigResponse)
     def config() -> ConfigResponse:
-        return ConfigResponse.model_validate(
-            doctor_report(runs_dir=audit_service.runs_dir)
+        report = doctor_report(runs_dir=audit_service.runs_dir)
+        docker = report.get("docker")
+        docker_data = docker if isinstance(docker, Mapping) else {}
+        security = docker_data.get("sandbox_security")
+        security_data = security if isinstance(security, Mapping) else {}
+        return ConfigResponse(
+            python=str(report.get("python", "unknown")),
+            platform=str(report.get("platform", "unknown")),
+            git_available=bool(report.get("git_available", False)),
+            docker=DockerStatus(
+                available=bool(docker_data.get("available", False)),
+                server_version=_optional_string(docker_data.get("server_version")),
+                error=_optional_string(docker_data.get("error")),
+                daemon_running=_optional_bool(docker_data.get("daemon_running")),
+                context_verified=_optional_bool(docker_data.get("context_verified")),
+                seccomp=_optional_string(security_data.get("seccomp")),
+            ),
+            runs_dir=str(report.get("runs_dir", audit_service.runs_dir)),
+            runs_dir_writable=bool(report.get("runs_dir_writable", False)),
+            llm_provider=str(report.get("llm_provider", "unknown")),
+            llm_configured=bool(report.get("llm_configured", False)),
         )
 
     @router.post(
@@ -347,6 +370,8 @@ def run_server(
 ) -> None:
     """Run the local API with Uvicorn using a loopback default."""
 
+    if not _is_loopback_host(host):
+        raise ValueError("The local API may bind only to a loopback address.")
     import uvicorn
 
     uvicorn.run(create_app(runs_dir), host=host, port=port, log_level="info")
@@ -491,6 +516,21 @@ def _read_text_artifact(
     if len(content) > _MAX_REPORT_CHARACTERS:
         raise HTTPException(status_code=413, detail="Artifact is too large.")
     return ReportResponse(run_id=run_id, content=redact_sensitive_text(content))
+
+
+def _optional_string(value: object) -> str | None:
+    return value if isinstance(value, str) else None
+
+
+def _optional_bool(value: object) -> bool | None:
+    return value if isinstance(value, bool) else None
+
+
+def _is_loopback_host(host: str) -> bool:
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _safe_value(value: Any) -> Any:

@@ -1,275 +1,145 @@
-# 🧭 ReproScout
+# ReproScout
 
-> AI-assisted environment preflight and evidence-backed handoff for open-source research projects.
+<!-- Official compass logo integration is intentionally deferred until the approved asset is available. -->
 
+**Research Environment Verification**
+
+**Verify the environment before reproducing the research.**
+
+[![ReproScout version](https://img.shields.io/badge/ReproScout-0.1.0-0F766E)](#overview)
+[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Docker](https://img.shields.io/badge/Docker-isolated%20execution-2496ED?logo=docker&logoColor=white)](https://www.docker.com/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-optional%20local%20API-009688?logo=fastapi&logoColor=white)](https://fastapi.tiangolo.com/)
+[![React](https://img.shields.io/badge/React-local%20dashboard-61DAFB?logo=react&logoColor=black)](https://react.dev/)
+[![Typer](https://img.shields.io/badge/Typer-Python%20CLI-3776AB)](https://typer.tiangolo.com/)
 [![CI](https://github.com/emam26/ReproScout/actions/workflows/ci.yml/badge.svg)](https://github.com/emam26/ReproScout/actions/workflows/ci.yml)
-![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB)
-![License: MIT](https://img.shields.io/badge/license-MIT-green)
+[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
-ReproScout helps researchers establish a trustworthy environment handoff for a
-public research repository. Its default `preflight` workflow detects setup
-requirements, prepares a bounded Docker environment, diagnoses setup failures,
-and writes evidence for another coding agent. The existing `audit` workflow is
-the explicit opt-in path for target tests, demos, and other reproduction
-workflows.
+ReproScout prepares researchers to investigate an open-source project by checking its documented Python environment, dependencies, and setup constraints in a bounded Docker sandbox. It produces evidence-backed readiness artifacts for a researcher or coding agent before any scientific experiment is attempted.
 
-> [!NOTE]
-> ReproScout is pre-release. The package and CLI now use the `reproscout` name;
-> PyPI publication and hosted deployment are still future work.
+Environment readiness is not a claim that a paper result, model, benchmark, or experiment has been reproduced.
 
-## What is ReproScout?
+## Overview
 
-ReproScout is a reproducibility auditor for public Python research and AI/ML
-projects. It is more than a static file checker: it can inspect a repository,
-build a bounded plan, execute that plan in a Docker sandbox, collect evidence,
-and let deterministic verification decide the result.
+ReproScout is a Python-first reproducibility preflight tool for public research repositories. Its default workflow is deliberately conservative: it analyzes setup material, performs permitted lightweight environment work, and records what was actually observed. It does not automatically train models, run evaluations, or execute arbitrary repository scripts.
 
-```text
-Repository → Inspect → Plan → Docker execution → Diagnose → Verify → Report
-```
+The separate `audit` workflow is an explicit, bounded route for target-workflow execution. It remains distinct from the default environment-preflight path.
 
-The core also contains policy-checked repair experiments and clean-room replay
-support. The public `audit` command does not silently modify a target repository
-or claim an automatic source repair.
+## Features
 
-## Why ReproScout?
+| Capability | What it provides |
+| --- | --- |
+| Environment preflight | Detects Python requirements, declared dependencies, system-tool needs, setup instructions, and missing prerequisites. |
+| Evidence-backed outcomes | Distinguishes verified readiness, partial setup, failed installation, missing prerequisites, unsafe conditions, and unverified capabilities. |
+| Isolated execution | Uses controlled Docker execution for permitted setup and lightweight verification work when Docker is available and suitable. |
+| Optional reasoning | Can use configured LLM providers to interpret setup instructions or diagnose errors; LLM output never establishes success. |
+| Research-agent handoff | Writes a concise report, machine-readable evidence, and an agent-ready summary with the pinned revision and unresolved issues. |
+| Local interfaces | Includes a Typer CLI, an optional loopback-only FastAPI service, and a local React dashboard. |
 
-Research repositories often depend on undocumented Python versions, stale
-packages, missing assets, incorrect paths, or machine-specific assumptions.
-Finding the real blocker manually can take hours. ReproScout automates the
-audit while preserving the commands, outputs, failures, environment facts, and
-verification evidence needed to review what happened.
+## Installation
 
-## How it works
-
-1. **Intake** — validate a public GitHub URL, clone it with sterile Git settings,
-   and record the exact commit.
-2. **Analyze** — inspect README instructions, dependency files, tests, Docker,
-   and other bounded project context.
-3. **Plan** — create a finite workflow from documented and detected commands.
-4. **Execute** — install and run target commands only inside a bounded Docker
-   sandbox.
-5. **Diagnose** — normalize failures and build a bounded evidence bundle;
-   optional LLM reasoning can explain ambiguous failures.
-6. **Repair and retry** — use typed, policy-checked repair capabilities when a
-   controlled repair experiment is explicitly run.
-7. **Verify** — check exit codes, tests, artifacts, and configured expectations
-   with deterministic code.
-8. **Clean-room rerun** — rerun successful workflows in a fresh workspace when
-   the verification contract requires it.
-9. **Report** — write machine-readable state and a human-readable summary.
-
-## Where AI is used
-
-Deterministic tools handle repository inspection, dependency parsing, command
-execution, failure capture, state transitions, and verification. An LLM is
-optional and is used only for interpretation: understanding ambiguous setup
-instructions, forming failure hypotheses, or selecting among permitted repair
-options.
-
-> [!IMPORTANT]
-> The LLM never decides that reproduction succeeded. The verifier decides from
-> recorded execution and artifact evidence.
-
-## Quick start
-
-For a released wheel, the intended terminal workflow is:
-
-```bash
-uv tool install reproscout
-reproscout setup
-reproscout preflight https://github.com/user/project
-```
-
-ReproScout is not published to PyPI yet, so the commands above require a
-trusted wheel or package index supplied by the user. For the current
-development checkout, use Python 3.11+ and install it into a virtual
-environment:
+Install ReproScout from a source checkout; it is not presented as a PyPI package. Python 3.11 or later is required. Docker is a separate runtime prerequisite for sandboxed work; installation of the CLI does not install or validate Docker.
 
 ```bash
 git clone https://github.com/emam26/ReproScout.git
 cd ReproScout
-python -m venv .venv
-source .venv/bin/activate          # Windows: .venv\Scripts\Activate.ps1
-python -m pip install -e .
 ```
 
-Check prerequisites and inspect a repository without executing its code:
+`uv` is the primary installation path:
+
+| Use case | Command |
+| --- | --- |
+| CLI only | `uv tool install --editable .` |
+| CLI plus the local API/dashboard backend | `uv tool install --reinstall --editable ".[api]"` |
+| Development checkout | `uv venv` then `uv pip install -e ".[dev]"` |
+
+Use the API installation command when adding the optional API to an existing CLI-only `uv` tool installation; `--reinstall` refreshes that managed environment with the extra.
+
+For a standard virtual environment instead:
+
+```bash
+python -m venv .venv
+# Activate .venv for your shell, then choose one:
+python -m pip install -e .          # CLI only
+python -m pip install -e ".[api]"  # CLI plus local API
+python -m pip install -e ".[dev]"  # development dependencies
+```
+
+## Quick Start
+
+Start by inspecting the local prerequisites. `doctor` is read-only. `setup --dry-run` describes the onboarding result without changing installation or runtime state.
 
 ```bash
 reproscout doctor
-reproscout inspect https://github.com/user/project --no-ai
+reproscout setup --dry-run
+reproscout setup
+reproscout preflight https://github.com/OWNER/REPOSITORY
 ```
 
-`doctor` is read-only. `setup` can propose a supported Docker Desktop or
-Colima installation on Windows/macOS, but requires explicit consent and
-reports runtime readiness only after a secure sandbox probe. Linux keeps the
-existing Docker path; unsupported or unverified host ownership configurations
-are reported rather than bypassed.
+`setup` requires explicit consent before it performs an installation action. A running, healthy Docker runtime is reused rather than reinstalled. Replace `OWNER/REPOSITORY` with the public repository to assess.
 
-Prepare an environment handoff without running project workflows:
+A completed preflight writes these artifacts to its run output:
 
-```bash
-reproscout preflight https://github.com/user/project
-```
+- `environment-report.md` - concise human-readable readiness report.
+- `environment-evidence.json` - structured evidence, commands, outcomes, and unresolved findings.
+- `agent-handoff.md` - a focused brief for a researcher or coding agent.
 
-This writes `environment-report.md`, `environment-evidence.json`, and
-`agent-handoff.md` beneath the run directory. `READY` means only that the
-declared environment checks passed; it is not evidence of a reproduced result.
+Use `reproscout preflight --help` for supported options, including `--ai` and a custom run directory.
 
-Run a bounded audit:
+## How ReproScout Works
 
-```bash
-reproscout audit https://github.com/user/project --goal auto --no-ai
-```
+1. It records the repository identity and exact revision used for the assessment.
+2. It inspects repository metadata and setup material for Python, package, environment, and system prerequisites.
+3. It creates a bounded plan and uses the sandbox only for permitted setup and lightweight verification commands.
+4. It evaluates deterministic evidence such as command outcomes, files, and environment checks.
+5. It reports verified facts separately from incomplete, blocked, unsafe, or unverified conditions.
 
-Use `--runs-dir ./local-runs` when you want artifacts stored in a specific
-directory. The command prints the run ID, status, verification level, attempts,
-report path, and clean-room package path when available.
+The control flow and verifier determine status. Optional LLM reasoning can help interpret instructions and failures, but it is never the authority for a successful environment or experiment.
 
-## What happens when a repository fails?
+## Example Outputs
 
-ReproScout does not hide a failed command behind an LLM explanation. It keeps
-the deterministic failure class and bounded evidence, then records any optional
-diagnosis separately. A diagnosis is a hypothesis, not proof, and a proposed
-repair cannot bypass the repair policy or verifier.
-
-An illustrative report might distinguish:
+The following is a schematic run-output layout; the exact run directory is configurable:
 
 ```text
-Official documented reproduction: FAILED
-Agent-assisted reproduction: PARTIAL
-
-Evidence: dependency installation failed under the documented environment
-Diagnosis: an undocumented Python-version constraint is likely
-Verification: reproduction not claimed until required checks pass
+<run-output>/
+|-- environment-report.md
+|-- environment-evidence.json
+`-- agent-handoff.md
 ```
 
-The result is one of:
-
-| Status | Meaning |
+| Artifact | Intended use |
 | --- | --- |
-| `REPRODUCED` | Required objective checks and any required clean-room rerun passed. |
-| `PARTIAL` | The workflow is not fully confirmed, or required verification is incomplete. |
-| `BLOCKED` | Required evidence or a safe verification path is unavailable. |
-| `FAILED` | Execution or an objective verification condition failed. |
-| `UNSAFE` | A deterministic safety check rejected the workflow. |
+| `environment-report.md` | Share a short, evidence-grounded environment assessment with a researcher. |
+| `environment-evidence.json` | Inspect structured commands, outcomes, checks, and unresolved findings programmatically. |
+| `agent-handoff.md` | Give a coding agent the pinned commit, verified environment facts, executed commands, outcomes, and safe next steps. |
 
-## CLI
+For example, a `READY` assessment means the environment checks required by the selected preflight plan were verified. It does not mean that experiments, training, benchmarks, or scientific claims have been reproduced.
 
-The current CLI is deliberately small:
+## CLI Commands
 
 | Command | Purpose |
 | --- | --- |
-| `doctor` | Check local prerequisites without revealing credentials. |
-| `setup` | Propose and, with consent, verify supported local Docker setup. |
-| `inspect <url>` | Clone and analyze a repository without executing target code. |
-| `preflight <url>` | Verify a bounded Docker environment without running target workflows. |
-| `audit <url>` | Run intake, analysis, Docker execution, verification, and reporting. |
-| `runs` | List persisted runs. |
-| `status <run-id>` | Show persisted control-plane state. |
-| `report <run-id>` | Display a run's Markdown report. |
-| `cleanup` | Remove only explicitly owned Docker containers. |
-| `version` | Print the installed version. |
-| `serve` | Start the optional local API. |
+| `reproscout doctor` | Inspect local prerequisites without making changes. |
+| `reproscout setup [--dry-run] [--yes]` | Assess or, with explicit consent, perform supported onboarding actions. |
+| `reproscout preflight <github-url>` | Run the safe environment-preflight workflow. |
+| `reproscout audit <github-url> --goal "..."` | Explicitly request the separate bounded target-workflow audit path. |
+| `reproscout inspect`, `run`, `runs`, `status`, `report` | Inspect, start, and review supported workflow runs. |
+| `reproscout cleanup` | Clean ReproScout-owned resources through the controlled lifecycle. |
+| `reproscout config` | View or manage supported local configuration. |
+| `reproscout serve` | Start the optional loopback-only API service. |
 
-See [`docs/CLI.md`](docs/CLI.md) for options and machine-readable output.
+Use `reproscout --help` and the [CLI reference](docs/CLI.md) for the authoritative command contracts and option details.
 
-## Output and reports
+## Local Dashboard and Public Website
 
-Each audit stores its evidence under the configured runs directory. Depending
-on the workflow, a run can contain:
-
-```text
-report.md          human-readable result
-run.json           schema-versioned report data
-events.jsonl       state and tool events
-commands.jsonl     executed command records
-environment.json   captured environment facts
-patches.diff       repair changes, when applicable
-reproduce.sh       a bounded reproduction recipe, when applicable
-```
-
-Reports distinguish the documented workflow from any agent-assisted evidence.
-Review artifacts before sharing them: they may contain project-specific paths,
-outputs, or failure details.
-
-## Current scope
-
-The first release focuses on:
-
-- public HTTPS GitHub repositories;
-- Python projects, including common `requirements.txt`, `pyproject.toml`,
-  `setup.py`, `setup.cfg`, and environment hints;
-- documented installs, tests, lightweight demos, and primarily CPU workflows;
-- Docker-backed execution with bounded time, output, resources, and network;
-- pytest-oriented verification and evidence-backed reporting.
-
-It is not intended to reproduce multi-day training runs, multi-GPU systems,
-giant datasets, full paper metrics, private or license-restricted assets, or
-arbitrary operating systems.
-
-## Safety
-
-Target repository code is untrusted. ReproScout uses Docker as a defense-in-
-depth boundary and does not fall back to executing target code on the host.
-Sandboxes are non-privileged, drop capabilities, use `no-new-privileges`, and
-apply workspace, timeout, output, and resource limits. The Docker socket and
-host credentials are not mounted, and network access is denied unless the
-bounded plan explicitly requires it.
-
-Cleanup matches only containers explicitly owned by this tool; it never
-performs global Docker cleanup.
-
-> [!WARNING]
-> Docker is not a perfect hostile-code or malware boundary. Do not expose the
-> local API to the public Internet, mount the Docker socket, or use ReproScout
-> with highly sensitive host data.
-
-See [`SECURITY.md`](SECURITY.md) for the security policy and limitations.
-
-## LLM providers
-
-LLM use is optional. The default path is deterministic and can run with
-`--no-ai`; offline tests use the mock provider. Gemini and Groq adapters exist,
-but this pre-release README does not claim live validation for either provider.
-
-If you explicitly enable a provider, configure credentials through environment
-variables only:
+The dashboard is a local development interface. Install the API extra before starting its backend:
 
 ```bash
-LLM_PROVIDER=gemini
-LLM_MODEL=<provider-model>
-GEMINI_API_KEY=<your-key>
-```
-
-Live Gemini checks are available only through the explicit opt-in path in
-[`docs/LLM_PROVIDERS.md`](docs/LLM_PROVIDERS.md); the normal test suite remains
-offline.
-
-Never commit or paste credentials into repositories, reports, prompts, or issue
-threads. Provider quota and rate limits are controlled by the provider.
-
-> [!TIP]
-> Use `--no-ai` or the mock provider while developing so ordinary tests remain
-> offline and do not consume provider quota.
-
-## Local API and dashboard
-
-The optional FastAPI control API uses the same application service as the CLI
-and binds to loopback by default:
-
-```bash
-python -m pip install -e ".[api]"
+uv tool install --reinstall --editable ".[api]"
 reproscout serve
 ```
 
-The API exposes versioned health, preflight, audit, run, event, evidence,
-handoff, report, and persisted-plan replay endpoints. It is a local
-development/control API, not a hardened multi-tenant service. See
-[`docs/API.md`](docs/API.md).
-
-The React/TypeScript dashboard is source-checkout tooling:
+In a second terminal, start the frontend from the source checkout:
 
 ```bash
 cd frontend
@@ -277,56 +147,38 @@ npm ci
 npm run dev
 ```
 
-See [`docs/DASHBOARD.md`](docs/DASHBOARD.md) for the local workflow.
+The development dashboard listens on `http://127.0.0.1:5173` and proxies API requests to the loopback API at `http://127.0.0.1:8000`. The backend health endpoint is `http://127.0.0.1:8000/api/v1/health`; it confirms API availability only, not Docker readiness or sandbox security.
 
-The public, backend-free site is built from the same frontend with
-`npm run build:public`. It is prepared for GitHub Pages but is not claimed to
-be deployed. See [`docs/DASHBOARD.md`](docs/DASHBOARD.md) for the owner setup
-step and current limitations.
+The separately built static GitHub Pages site uses the `/ReproScout/` base path and contains no backend job execution. The Pages workflow validates the public build and deploys `frontend/dist`; it is distinct from the local dashboard, and this README does not claim a public deployment is live.
 
-## Architecture
+## Evaluation and Testing
 
-```text
-CLI / API / Dashboard
-          ↓
-      ReproScout core
-          ↓
-Intake → Analysis → Plan → Docker execution
-                              ↓
-                    Diagnosis / repair policy
-                              ↓
-                         Verification
-                              ↓
-                    Clean-room rerun → Report
-```
+ReproScout has unit, offline workflow, Docker integration, and frontend test coverage. Docker integration testing requires a compatible local Docker daemon and is intentionally separate from the offline suite.
 
-The governing separation is: **LLM = reasoning, tools = execution, state =
-control, verifier = truth, Docker = isolation.** See
-[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the detailed design.
+Historical project notes record a prior baseline of 296 offline Python tests, 14 Docker tests, and 15 React tests. Those are historical observations, not a claim about the current checkout. The controlled real-world evaluation set, S01-S20, remains marked `NOT_RUN`; public-repository evaluation is incomplete. Native Windows and macOS installation paths also require direct platform verification.
 
-## Development
+See the [evaluation set](docs/EVALUATION_SET.md) and [roadmap](docs/ROADMAP.md) for the documented scope and outstanding validation work.
 
-```bash
-python -m pip install -e ".[dev]"
-pytest
-ruff check .
-ruff format --check .
-```
+## Security and Limitations
 
-Docker integration tests are explicit:
+- Repositories and their instructions are treated as untrusted input. ReproScout is designed to avoid executing target code directly on the host.
+- The Docker sandbox is defense in depth, not a guarantee of perfect isolation. Supported paths configure non-root execution, capability dropping, a read-only root filesystem, resource bounds, controlled networking, workspace validation, and owned-container cleanup.
+- Security configuration is not proof of a working sandbox. Readiness requires observed checks; a configured restriction alone does not establish a verified security capability.
+- Installation actions require consent. `--dry-run` is designed to avoid installation and runtime-changing actions.
+- Secrets and sensitive command output are redacted in reported diagnostics, but users should still avoid placing credentials in target repositories or command arguments.
+- The default preflight does not reproduce scientific results. Installing packages successfully is not evidence that a model, metric, benchmark, or paper claim is reproducible.
+- The optional API binds to loopback addresses only. Do not expose it through a proxy or public interface without an independent deployment security review.
 
-```bash
-pytest -m docker
-```
+Review the [Docker sandbox design](docs/DOCKER_SANDBOX.md) before relying on ReproScout for sensitive workloads.
 
-Frontend checks run from `frontend/`:
+## Documentation
 
-```bash
-npm run lint
-npm test
-npm run build
-```
+- [Project specification](docs/PROJECT_SPEC.md) and [architecture](docs/ARCHITECTURE.md)
+- [CLI reference](docs/CLI.md), [API reference](docs/API.md), and [dashboard guide](docs/DASHBOARD.md)
+- [Docker sandbox](docs/DOCKER_SANDBOX.md) and [diagnostics](docs/DIAGNOSTICS.md)
+- [Evaluation set](docs/EVALUATION_SET.md) and [roadmap](docs/ROADMAP.md)
+- [Contributing guide](CONTRIBUTING.md)
 
-Contributions should also follow [`CONTRIBUTING.md`](CONTRIBUTING.md). ReproScout
-is licensed under the [MIT License](LICENSE). See [`CHANGELOG.md`](CHANGELOG.md)
-for the current release history.
+## Contributing and License
+
+Contributions are welcome within the documented scope and safety model; start with the [contributing guide](CONTRIBUTING.md). ReproScout is released under the [MIT License](LICENSE).

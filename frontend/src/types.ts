@@ -65,6 +65,9 @@ export type ConfigStatus = {
     available: boolean;
     server_version: string | null;
     error: string | null;
+    daemon_running: boolean | null;
+    context_verified: boolean | null;
+    seccomp: string | null;
   };
   runs_dir: string;
   runs_dir_writable: boolean;

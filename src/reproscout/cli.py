@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import re
 import subprocess
+from ipaddress import ip_address
 from pathlib import Path
 from typing import Annotated
 
@@ -36,6 +37,12 @@ from .state import RunNotFoundError, SQLiteRunStore
 _SUPPORTED_GOALS = {"auto", "install", "tests", "demo"}
 _SAFE_RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 _SAFE_CONTAINER_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,127}\Z")
+_API_INSTALL_GUIDANCE = (
+    "The local dashboard API dependencies are missing. Reinstall ReproScout with "
+    '`uv tool install --reinstall --editable ".[api]"` (or '
+    '`python -m pip install -e ".[api]"`), then run `reproscout serve`. '
+    "The API binds to 127.0.0.1:8000 by default."
+)
 
 app = typer.Typer(
     name="reproscout",
@@ -644,15 +651,28 @@ def serve(
 ) -> None:
     """Serve the optional local FastAPI control API."""
 
-    try:
-        from .api import run_server
-    except ImportError as exc:
+    if not _is_loopback_host(host):
         _error(
-            "The local API is optional; install reproscout[api] first.",
+            "The local API may bind only to a loopback address. Use 127.0.0.1 or ::1.",
             json_output=False,
         )
+        raise typer.Exit(code=1)
+    try:
+        from .api import run_server
+
+        run_server(host=host, port=port, runs_dir=runs_dir)
+    except ModuleNotFoundError as exc:
+        if exc.name not in {"fastapi", "uvicorn"}:
+            raise
+        _error(_API_INSTALL_GUIDANCE, json_output=False)
         raise typer.Exit(code=1) from exc
-    run_server(host=host, port=port, runs_dir=runs_dir)
+
+
+def _is_loopback_host(host: str) -> bool:
+    try:
+        return ip_address(host).is_loopback
+    except ValueError:
+        return False
 
 
 def _resolve_run_directory(run_id: str, runs_dir: Path | None) -> Path:

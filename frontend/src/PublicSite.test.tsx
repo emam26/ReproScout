@@ -14,5 +14,6 @@ describe("public site", () => {
       "https://github.com/emam26/ReproScout",
     );
     expect(screen.queryByRole("button", { name: /run preflight/i })).not.toBeInTheDocument();
+    expect(screen.queryByText(/127\.0\.0\.1:8000/i)).not.toBeInTheDocument();
   });
 });
