@@ -1,8 +1,9 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-export default defineConfig({
+export default defineConfig(({ mode }) => ({
   plugins: [react()],
+  base: mode === "public" ? "/ReproScout/" : "/",
   server: {
     host: "127.0.0.1",
     port: 5173,
@@ -22,4 +23,4 @@ export default defineConfig({
     setupFiles: "./src/testSetup.ts",
     globals: true,
   },
-});
+}));
