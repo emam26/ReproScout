@@ -1,16 +1,28 @@
-# ReproScout
 
+<p align="center">
+  <img src="frontend/public/reproscout-logo.png"
+       alt="ReproScout compass logo"
+       width="115">
+</p>
 
+<h1 align="center">ReproScout</h1>
 
-**Research Environment Verification**
+<p align="center">
+  <strong>Research Environment Verification</strong>
+</p>
 
-**Verify the environment before reproducing the research.**
+<p align="center">
+  <strong>Verify the environment before reproducing the research.</strong>
+</p>
 
-[![ReproScout version](https://img.shields.io/badge/ReproScout-0.1.0-0F766E)](#overview)
-[![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![React](https://img.shields.io/badge/React-local%20dashboard-61DAFB?logo=react&logoColor=black)](https://react.dev/)
-[![Typer](https://img.shields.io/badge/Typer-Python%20CLI-3776AB)](https://typer.tiangolo.com/)
-[![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
+<p align="center">
+  <a href="#overview"><img src="https://img.shields.io/badge/ReproScout-0.1.0-0F766E" alt="Version"></a>
+  <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white" alt="Python"></a>
+  <a href="https://react.dev/"><img src="https://img.shields.io/badge/React-local%20dashboard-61DAFB?logo=react&logoColor=black" alt="React"></a>
+  <a href="https://typer.tiangolo.com/"><img src="https://img.shields.io/badge/Typer-Python%20CLI-3776AB" alt="Typer"></a>
+  <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License"></a>
+</p>
+
 
 ReproScout prepares researchers to investigate an open-source project by checking its documented Python environment, dependencies, and setup constraints in a bounded Docker sandbox. It produces evidence-backed readiness artifacts for a researcher or coding agent before any scientific experiment is attempted.
 
