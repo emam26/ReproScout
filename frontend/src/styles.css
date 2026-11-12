@@ -76,10 +76,49 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #b5d6a9; ou
 .actions-row { align-items: center; display: flex; gap: 15px; }
 .report-preview { background: #17231d; border-radius: 12px; color: #dbe8d8; font: .77rem/1.55 ui-monospace, SFMono-Regular, Consolas, monospace; max-height: 360px; overflow: auto; padding: 16px; white-space: pre-wrap; }
 
+.public-shell { background: #f3f5ef; color: #17231d; min-height: 100vh; }
+.public-nav, .public-hero-content, .public-section, .public-footer { margin: 0 auto; max-width: 1120px; }
+.public-nav { align-items: center; display: flex; justify-content: space-between; padding: 24px 28px; }
+.brand { color: #17231d; font-size: 1.15rem; font-weight: 900; letter-spacing: -.04em; text-decoration: none; }
+.public-nav nav { display: flex; gap: 22px; }
+.public-nav nav a, .text-link, .public-footer a { color: #315e38; font-weight: 750; text-decoration: none; }
+.public-nav nav a:hover, .text-link:hover, .public-footer a:hover { text-decoration: underline; }
+.public-hero { background: radial-gradient(circle at 80% 30%, rgba(123, 165, 104, .3), transparent 33%), linear-gradient(135deg, #dcebd8 0%, #f3f5ef 62%); height: 450px; left: 0; position: absolute; right: 0; top: 0; z-index: 0; }
+.public-hero-content { min-height: 450px; padding: 108px 28px 70px; position: relative; z-index: 1; }
+.public-hero-content h1 { font-size: clamp(3.1rem, 8vw, 6.8rem); max-width: 850px; }
+.public-lede { color: #53665a; font-size: 1.15rem; line-height: 1.65; margin: 26px 0; max-width: 650px; }
+.public-actions { display: flex; flex-wrap: wrap; gap: 11px; }
+.public-button { border-radius: 10px; display: inline-block; font-weight: 850; padding: 12px 17px; text-decoration: none; }
+.public-button.primary { background: #315e38; color: #fff; width: auto; }
+.public-button.secondary { background: #e7efe3; color: #315e38; }
+.public-note { color: #718078; font-size: .82rem; max-width: 650px; }
+.public-section { padding: 92px 28px 0; }
+.public-section h2 { font-size: clamp(1.8rem, 4vw, 3.2rem); max-width: 660px; }
+.pipeline-grid, .feature-grid { display: grid; gap: 14px; margin-top: 32px; }
+.pipeline-grid { grid-template-columns: repeat(4, 1fr); }
+.pipeline-step, .feature-card, .example-card { background: #fff; border: 1px solid #dfe6dc; border-radius: 16px; padding: 20px; }
+.pipeline-step > span { color: #72a16c; font: 900 .75rem ui-monospace, monospace; }
+.pipeline-step h3, .feature-card h3 { margin: 38px 0 8px; }
+.pipeline-step p, .feature-card p, .install-section > p { color: #657469; margin: 0; }
+.feature-section { align-items: start; display: grid; gap: 36px; grid-template-columns: .8fr 1.2fr; }
+.feature-grid { grid-template-columns: repeat(2, 1fr); margin-top: 0; }
+.feature-card h3 { margin-top: 0; }
+.install-section { max-width: 800px; }
+.install-section pre { background: #17231d; border-radius: 14px; color: #dbe8d8; margin: 24px 0 14px; overflow: auto; padding: 18px; }
+.example-card { margin-top: 28px; max-width: 660px; }
+.example-card div { align-items: center; display: flex; justify-content: space-between; }
+.example-card strong { color: #84630c; }
+.example-card p { color: #53665a; }
+.example-card small { color: #8a968e; }
+.public-footer { border-top: 1px solid #dfe6dc; color: #718078; display: flex; font-size: .8rem; justify-content: space-between; margin-top: 92px; padding: 22px 28px 40px; }
+.skip-link { background: #fff; left: 8px; padding: 8px; position: absolute; top: -60px; z-index: 3; }
+.skip-link:focus { top: 8px; }
+
 @media (max-width: 850px) {
   .masthead, .top-grid, .detail-columns { grid-template-columns: 1fr; display: grid; }
   .safety-note { max-width: none; }
   .facts-grid, .config-grid { grid-template-columns: repeat(2, 1fr); }
+  .pipeline-grid, .feature-section { grid-template-columns: 1fr 1fr; }
 }
 
 @media (max-width: 520px) {
@@ -87,4 +126,9 @@ input:focus, select:focus, button:focus-visible { outline: 3px solid #b5d6a9; ou
   .panel { padding: 17px; }
   .form-row, .facts-grid, .config-grid { grid-template-columns: 1fr; }
   .run-row { align-items: flex-start; flex-direction: column; }
+  .public-nav { align-items: flex-start; flex-direction: column; gap: 13px; }
+  .public-nav nav { flex-wrap: wrap; gap: 10px 16px; }
+  .public-hero-content { padding-top: 80px; }
+  .pipeline-grid, .feature-grid, .feature-section { grid-template-columns: 1fr; }
+  .public-footer { flex-direction: column; gap: 10px; }
 }

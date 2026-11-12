@@ -1,18 +1,29 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import {
+  type FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import {
   ApiError,
-  getEvents,
+  getAgentHandoff,
   getConfig,
+  getEnvironmentEvidence,
+  getEnvironmentReport,
+  getEvents,
   getReport,
   getRun,
   isTerminalStage,
   listRuns,
   startAudit,
+  startPreflight,
   statusTone,
 } from "./api";
 import type {
   ConfigStatus,
+  EnvironmentEvidence,
   EventRecord,
   ReportResponse,
   RunDetail,
@@ -21,6 +32,7 @@ import type {
 import "./styles.css";
 
 const initialForm = { repository_url: "", goal: "auto", no_ai: true };
+type Workflow = "preflight" | "audit";
 
 export default function App() {
   const [runs, setRuns] = useState<RunSummary[]>([]);
@@ -28,6 +40,9 @@ export default function App() {
   const [selected, setSelected] = useState<RunDetail | null>(null);
   const [events, setEvents] = useState<EventRecord[]>([]);
   const [report, setReport] = useState<ReportResponse | null>(null);
+  const [evidence, setEvidence] = useState<EnvironmentEvidence | null>(null);
+  const [artifactLabel, setArtifactLabel] = useState("report");
+  const [workflow, setWorkflow] = useState<Workflow>("preflight");
   const [form, setForm] = useState(initialForm);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -52,6 +67,14 @@ export default function App() {
       ]);
       setSelected(nextDetail);
       setEvents(nextEvents);
+      setEvidence(null);
+      if (nextDetail.context.workflow === "environment-preflight") {
+        try {
+          setEvidence(await getEnvironmentEvidence(runId));
+        } catch {
+          // The run may be listed before its final evidence artifact is written.
+        }
+      }
     } catch (reason) {
       setError(errorMessage(reason));
     }
@@ -80,25 +103,30 @@ export default function App() {
   }, [refreshRuns, refreshSelected, selected]);
 
   const selectRun = async (runId: string) => {
-    try {
-      setError(null);
-      await refreshSelected(runId);
-      setReport(null);
-    } catch (reason) {
-      setError(errorMessage(reason));
-    }
+    setError(null);
+    setReport(null);
+    setArtifactLabel("report");
+    await refreshSelected(runId);
   };
 
-  const submitAudit = async (event: React.FormEvent<HTMLFormElement>) => {
+  const submitWorkflow = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!form.repository_url.trim()) {
+    if (!isPublicGithubUrl(form.repository_url.trim())) {
       setError("Enter a public HTTPS GitHub repository URL.");
       return;
     }
     try {
       setSubmitting(true);
       setError(null);
-      const result = await startAudit({ ...form, repository_url: form.repository_url.trim() });
+      const result = workflow === "preflight"
+        ? await startPreflight({
+            no_ai: form.no_ai,
+            repository_url: form.repository_url.trim(),
+          })
+        : await startAudit({
+            ...form,
+            repository_url: form.repository_url.trim(),
+          });
       await refreshRuns();
       await selectRun(result.run_id);
       setForm(initialForm);
@@ -109,20 +137,44 @@ export default function App() {
     }
   };
 
-  const showReport = async () => {
+  const showArtifact = async (kind: "report" | "environment" | "handoff") => {
     if (!selected) return;
     try {
       setError(null);
-      setReport(await getReport(selected.run_id));
+      const nextReport = kind === "environment"
+        ? await getEnvironmentReport(selected.run_id)
+        : kind === "handoff"
+          ? await getAgentHandoff(selected.run_id)
+          : await getReport(selected.run_id);
+      setArtifactLabel(kind);
+      setReport(nextReport);
     } catch (reason) {
       setError(errorMessage(reason));
     }
   };
 
-  const status = useMemo(
-    () => selected?.report?.final_status,
-    [selected],
-  );
+  const showEvidence = async () => {
+    if (!selected) return;
+    try {
+      setError(null);
+      const nextEvidence = evidence ?? (
+        await getEnvironmentEvidence(selected.run_id)
+      );
+      setEvidence(nextEvidence);
+      setArtifactLabel("environment evidence");
+      setReport({
+        run_id: selected.run_id,
+        content: JSON.stringify(nextEvidence.evidence, null, 2),
+      });
+    } catch (reason) {
+      setError(errorMessage(reason));
+    }
+  };
+
+  const status = useMemo(() => {
+    if (evidence?.evidence.status) return evidence.evidence.status;
+    return selected?.report?.final_status;
+  }, [evidence, selected]);
   const statusText = typeof status === "string" ? status : "RUNNING";
 
   return (
@@ -131,7 +183,7 @@ export default function App() {
         <div>
           <p className="eyebrow">LOCAL CONTROL SURFACE</p>
           <h1>ReproScout</h1>
-          <p className="lede">Evidence-backed reproducibility audits for open-source software.</p>
+          <p className="lede">Safe environment preflight and evidence-backed reproducibility audits for open-source software.</p>
         </div>
         <div className="safety-note">
           <strong>Local only</strong>
@@ -142,14 +194,25 @@ export default function App() {
       {error && <div className="notice danger" role="alert">{error}</div>}
 
       <section className="grid top-grid">
-        <form className="panel audit-form" onSubmit={submitAudit}>
+        <form className="panel audit-form" onSubmit={submitWorkflow}>
           <div className="panel-heading">
             <div>
-              <p className="eyebrow">NEW AUDIT</p>
-              <h2>Test a repository</h2>
+              <p className="eyebrow">NEW WORKFLOW</p>
+              <h2>Prepare a repository</h2>
             </div>
             <span className="step-chip">bounded</span>
           </div>
+          <label>
+            Workflow
+            <select
+              aria-label="Workflow"
+              value={workflow}
+              onChange={(event) => setWorkflow(event.target.value as Workflow)}
+            >
+              <option value="preflight">Environment preflight</option>
+              <option value="audit">Legacy reproduction audit</option>
+            </select>
+          </label>
           <label>
             Public GitHub URL
             <input
@@ -162,11 +225,12 @@ export default function App() {
           </label>
           <div className="form-row">
             <label>
-              Goal
+              Goal (audit only)
               <select
                 aria-label="Goal"
                 value={form.goal}
                 onChange={(event) => setForm({ ...form, goal: event.target.value })}
+                disabled={workflow === "preflight"}
               >
                 <option value="auto">Auto</option>
                 <option value="install">Install</option>
@@ -184,9 +248,9 @@ export default function App() {
             </label>
           </div>
           <button className="primary" disabled={submitting} type="submit">
-            {submitting ? "Starting…" : "Start audit"}
+            {submitting ? "Running bounded checks..." : workflow === "preflight" ? "Start preflight" : "Start audit"}
           </button>
-          <p className="muted">Audits are bounded and may take time while Docker builds the isolated workflow.</p>
+          <p className="muted">Preflight inspects requirements and verifies only permitted environment steps. It does not run experiments or training.</p>
         </form>
 
         <section className="panel runs-panel">
@@ -198,13 +262,18 @@ export default function App() {
             <button className="quiet-button" onClick={() => void refreshRuns()} type="button">Refresh</button>
           </div>
           {loading ? (
-            <p className="empty">Loading runs…</p>
+            <p className="empty">Loading runs...</p>
           ) : runs.length === 0 ? (
             <p className="empty">No audits yet. Start with a public repository.</p>
           ) : (
             <div className="run-list">
               {runs.map((run) => {
-                const runStatus = typeof run.context.final_status === "string" ? run.context.final_status : run.outcome ?? run.stage;
+                const runStatus = stringValue(
+                  typeof run.context.preflight_status === "string"
+                    ? run.context.preflight_status
+                    : run.context.final_status ?? run.outcome ?? run.stage,
+                );
+                const label = run.context.workflow === "environment-preflight" ? "PREFLIGHT" : "AUDIT";
                 return (
                   <button
                     className={`run-row ${selected?.run_id === run.run_id ? "selected" : ""}`}
@@ -214,9 +283,9 @@ export default function App() {
                   >
                     <span>
                       <strong>{run.run_id}</strong>
-                      <small>{run.stage} · {formatDate(run.updated_at)}</small>
+                      <small>{label} · {run.stage} · {formatDate(run.updated_at)}</small>
                     </span>
-                    <span className={`status-pill ${statusTone(runStatus)}`}>{runStatus}</span>
+                    <span className={`status-pill ${statusTone(String(runStatus))}`}>{runStatus}</span>
                   </button>
                 );
               })}
@@ -231,12 +300,10 @@ export default function App() {
             <p className="eyebrow">SETTINGS / CONFIG</p>
             <h2>Runtime status</h2>
           </div>
-          <button className="quiet-button" onClick={() => void refreshConfig()} type="button">
-            Refresh
-          </button>
+          <button className="quiet-button" onClick={() => void refreshConfig()} type="button">Refresh</button>
         </div>
         {!config ? (
-          <p className="empty">Loading local capability status…</p>
+          <p className="empty">Loading local capability status...</p>
         ) : (
           <div className="config-grid">
             <ConfigFact label="API / Python" value={`${config.python} · ${config.llm_provider}`} />
@@ -256,16 +323,16 @@ export default function App() {
           {selected && <span className={`status-pill large ${statusTone(statusText)}`}>{statusText}</span>}
         </div>
         {!selected ? (
-          <p className="empty">Choose a run to inspect its evidence, timeline, and report.</p>
+          <p className="empty">Choose a run to inspect its evidence, timeline, and artifacts.</p>
         ) : (
           <div className="detail-content">
             <div className="facts-grid">
               <Fact label="Stage" value={selected.stage} />
               <Fact label="Outcome" value={selected.outcome ?? "Active"} />
-              <Fact label="Repository" value={stringValue(selected.context.repository)} />
-              <Fact label="Verification" value={stringValue(selected.report?.final_status ?? "Not available")} />
+              <Fact label="Workflow" value={selected.context.workflow === "environment-preflight" ? "Environment preflight" : "Legacy audit"} />
+              <Fact label="Repository" value={stringValue(selected.context.repository ?? selected.context.repository_url)} />
+              <Fact label="Verification" value={stringValue(status ?? "Not available")} />
               <Fact label="Events" value={String(selected.event_count)} />
-              <Fact label="Updated" value={formatDate(selected.updated_at)} />
             </div>
             <div className="detail-columns">
               <section>
@@ -278,12 +345,20 @@ export default function App() {
               </section>
               <section>
                 <h3>Evidence summary</h3>
-                <EvidenceList report={selected.report} />
+                <EvidenceList report={selected.report} evidence={evidence?.evidence ?? null} />
               </section>
             </div>
             <div className="actions-row">
-              <button className="secondary" onClick={() => void showReport()} type="button">Load report</button>
-              {report && <span className="muted">Report loaded ({report.content.length.toLocaleString()} characters)</span>}
+              {selected.context.workflow === "environment-preflight" ? (
+                <>
+                  <button className="secondary" onClick={() => void showArtifact("environment")} type="button">Environment report</button>
+                  <button className="secondary" onClick={() => void showEvidence()} type="button">Evidence JSON</button>
+                  <button className="secondary" onClick={() => void showArtifact("handoff")} type="button">Agent handoff</button>
+                </>
+              ) : (
+                <button className="secondary" onClick={() => void showArtifact("report")} type="button">Load report</button>
+              )}
+              {report && <span className="muted">{artifactLabel} loaded ({report.content.length.toLocaleString()} characters)</span>}
             </div>
             {report && <pre className="report-preview">{report.content}</pre>}
           </div>
@@ -301,7 +376,16 @@ function ConfigFact({ label, value, ok = true }: { label: string; value: string;
   return <div className="config-fact"><span>{label}</span><strong className={ok ? "is-ok" : "is-muted"}>{value}</strong></div>;
 }
 
-function EvidenceList({ report }: { report: Record<string, unknown> | null }) {
+function EvidenceList({ report, evidence }: { report: Record<string, unknown> | null; evidence: Record<string, unknown> | null }) {
+  if (evidence) {
+    const assessment = isRecord(evidence.assessment) ? evidence.assessment : evidence;
+    const requirements = isRecord(assessment) && Array.isArray(assessment.requirements) ? assessment.requirements.length : 0;
+    const commands = isRecord(assessment) && Array.isArray(assessment.commands) ? assessment.commands.length : 0;
+    const unresolved = isRecord(assessment) && Array.isArray(assessment.unresolved_problems) ? assessment.unresolved_problems.length : 0;
+    const unverified = isRecord(assessment) && Array.isArray(assessment.unverified_capabilities) ? assessment.unverified_capabilities.length : 0;
+    const verified = isRecord(assessment) && Array.isArray(assessment.verified_facts) ? assessment.verified_facts.length : 0;
+    return <div className="evidence-list"><div><span>Requirements</span><strong>{requirements}</strong></div><div><span>Permitted commands</span><strong>{commands}</strong></div><div><span>Verified facts</span><strong>{verified}</strong></div><div><span>Unresolved problems</span><strong>{unresolved}</strong></div><div><span>Unverified capabilities</span><strong>{unverified}</strong></div><div><span>Environment</span><strong>{evidence.verified_environment === true ? "verified" : "unverified"}</strong></div><div><span>Commit</span><strong>{stringValue(evidence.commit_sha).slice(0, 12)}</strong></div></div>;
+  }
   if (!report) return <p className="muted">Final report is not available yet.</p>;
   const sections = [
     ["Failures", report.failures],
@@ -313,7 +397,7 @@ function EvidenceList({ report }: { report: Record<string, unknown> | null }) {
 }
 
 function stringValue(value: unknown): string {
-  return typeof value === "string" && value.length > 0 ? value : "—";
+  return typeof value === "string" && value.length > 0 ? value : "-";
 }
 
 function formatDate(value: string): string {
@@ -325,4 +409,24 @@ function errorMessage(reason: unknown): string {
   if (reason instanceof ApiError) return reason.message;
   if (reason instanceof Error) return reason.message;
   return "The local API could not be reached.";
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function isPublicGithubUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value);
+    const parts = parsed.pathname.split("/").filter(Boolean);
+    return parsed.protocol === "https:"
+      && parsed.hostname.toLowerCase() === "github.com"
+      && parts.length === 2
+      && !parsed.username
+      && !parsed.password
+      && !parsed.search
+      && !parsed.hash;
+  } catch {
+    return false;
+  }
 }
