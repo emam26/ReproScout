@@ -1,6 +1,6 @@
 # ReproScout
 
-<!-- Official compass logo integration is intentionally deferred until the approved asset is available. -->
+
 
 **Research Environment Verification**
 
