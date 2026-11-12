@@ -2,6 +2,12 @@ from typer.testing import CliRunner
 
 from reproscout.application import PreflightResult
 from reproscout.cli import app
+from reproscout.onboarding import (
+    DockerInspection,
+    HostSnapshot,
+    SetupResult,
+    SetupStatus,
+)
 from reproscout.preflight import PreflightArtifactPaths, PreflightStatus
 
 runner = CliRunner()
@@ -16,6 +22,7 @@ def test_help_command_exits_successfully() -> None:
     assert "preflight" in result.stdout
     assert "inspect" in result.stdout
     assert "doctor" in result.stdout
+    assert "setup" in result.stdout
 
 
 def test_version_command() -> None:
@@ -98,13 +105,67 @@ def test_run_command_rejects_unsupported_url() -> None:
     assert "Only HTTPS GitHub repository URLs are supported" in result.stderr
 
 
-def test_doctor_json_is_secret_free() -> None:
+def test_doctor_json_is_secret_free(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "reproscout.cli.doctor_report",
+        lambda: {
+            "docker": {"available": True},
+            "runtime_compatibility": "supported",
+            "llm_configured": False,
+        },
+    )
     result = runner.invoke(app, ["doctor", "--json"])
 
     assert result.exit_code == 0
     assert "GEMINI_API_KEY" not in result.stdout
     assert "GROQ_API_KEY" not in result.stdout
     assert "llm_configured" in result.stdout
+
+
+def test_doctor_returns_failure_exit_when_runtime_is_not_ready(monkeypatch) -> None:
+    monkeypatch.setattr(
+        "reproscout.cli.doctor_report",
+        lambda: {
+            "docker": {"available": False},
+            "runtime_compatibility": "supported",
+        },
+    )
+
+    result = runner.invoke(app, ["doctor", "--json"])
+
+    assert result.exit_code == 1
+
+
+def test_setup_dry_run_has_a_success_exit_without_running_actions(monkeypatch) -> None:
+    planned = SetupResult(
+        status=SetupStatus.NEEDS_SETUP,
+        host=HostSnapshot(
+            system="Linux",
+            release="test",
+            version="test",
+            machine="x86_64",
+            cpu_count=4,
+            memory_bytes=1_000,
+            disk_free_bytes=2_000,
+        ),
+        docker=DockerInspection(
+            installed=False,
+            daemon_running=False,
+            command=None,
+            server_version=None,
+            context=None,
+            context_verified=False,
+            error="Docker is not installed",
+            sandbox_security={"cap_drop_all": "configured"},
+        ),
+        message="Dry run: no setup command was executed.",
+    )
+    monkeypatch.setattr("reproscout.cli.run_setup", lambda **kwargs: planned)
+
+    result = runner.invoke(app, ["setup", "--dry-run", "--json"])
+
+    assert result.exit_code == 0
+    assert '"status": "NEEDS_SETUP"' in result.stdout
 
 
 def test_status_rejects_path_traversal_before_database_access(tmp_path) -> None:

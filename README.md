@@ -73,8 +73,18 @@ options.
 
 ## Quick start
 
-ReproScout is not published to PyPI yet. Install the current development
-checkout instead. Python 3.11+ and Docker are required for target execution.
+For a released wheel, the intended terminal workflow is:
+
+```bash
+uv tool install reproscout
+reproscout setup
+reproscout preflight https://github.com/user/project
+```
+
+ReproScout is not published to PyPI yet, so the commands above require a
+trusted wheel or package index supplied by the user. For the current
+development checkout, use Python 3.11+ and install it into a virtual
+environment:
 
 ```bash
 git clone https://github.com/emam26/ReproScout.git
@@ -90,6 +100,12 @@ Check prerequisites and inspect a repository without executing its code:
 reproscout doctor
 reproscout inspect https://github.com/user/project --no-ai
 ```
+
+`doctor` is read-only. `setup` can propose a supported Docker Desktop or
+Colima installation on Windows/macOS, but requires explicit consent and
+reports runtime readiness only after a secure sandbox probe. Linux keeps the
+existing Docker path; unsupported or unverified host ownership configurations
+are reported rather than bypassed.
 
 Prepare an environment handoff without running project workflows:
 
@@ -146,6 +162,7 @@ The current CLI is deliberately small:
 | Command | Purpose |
 | --- | --- |
 | `doctor` | Check local prerequisites without revealing credentials. |
+| `setup` | Propose and, with consent, verify supported local Docker setup. |
 | `inspect <url>` | Clone and analyze a repository without executing target code. |
 | `preflight <url>` | Verify a bounded Docker environment without running target workflows. |
 | `audit <url>` | Run intake, analysis, Docker execution, verification, and reporting. |

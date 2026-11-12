@@ -41,9 +41,28 @@ class DockerAvailability(BaseModel):
 _SAFE_RUN_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_.-]*\Z")
 _SAFE_CONTAINER_ID = re.compile(r"[0-9a-fA-F]{12,64}\Z")
 _DOCKER_OUTPUT_LIMIT_BYTES = 1_000_000
+_WSL_CLI_PROBE_TIMEOUT = 5.0
 _INTERNAL_VENV = Path(".reproscout") / "venv"
 _RUNTIME_VENV = Path("/runtime") / "venv"
 _RUNTIME_TMPFS_SIZE = "256m"
+
+
+def _wsl_docker_cli_available() -> bool:
+    """Check that the Docker CLI exists inside WSL without changing state."""
+
+    try:
+        result = subprocess.run(
+            ["wsl.exe", "-e", "docker", "--version"],
+            capture_output=False,
+            check=False,
+            shell=False,
+            stderr=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            timeout=_WSL_CLI_PROBE_TIMEOUT,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return False
+    return result.returncode == 0
 
 
 def resolve_docker_command(
@@ -55,7 +74,7 @@ def resolve_docker_command(
         return tuple(str(part) for part in preferred)
     if shutil.which("docker"):
         return ("docker",)
-    if os.name == "nt" and shutil.which("wsl.exe"):
+    if os.name == "nt" and shutil.which("wsl.exe") and _wsl_docker_cli_available():
         return ("wsl.exe", "-e", "docker")
     raise DockerCliUnavailableError(
         "Docker CLI was not found. Install Docker and ensure docker is on PATH."

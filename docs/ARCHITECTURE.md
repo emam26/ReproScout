@@ -39,6 +39,10 @@ implicitly entered by preflight.
   command-safe reproduction plan.
 * **Sandbox** owns disposable Docker containers with labels, dropped
   capabilities, resource limits, workspace bounds, and explicit network mode.
+* **Onboarding** provides read-only host/Docker diagnostics and a separate,
+  consent-gated setup planner. It invokes only fixed package-manager commands,
+  never changes the user's Docker context, and treats a subsequent sandbox
+  probe—not an installer exit code—as readiness evidence.
 * **Execution** runs plan steps sequentially and persists attempts, tool calls,
   outputs, failures, and cleanup evidence through the SQLite state store.
 * **Diagnosis and repair** normalize failures, build bounded evidence, and
