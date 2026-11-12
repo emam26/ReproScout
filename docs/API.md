@@ -21,10 +21,15 @@ GET  /api/v1/health
 GET  /api/v1/version
 GET  /api/v1/config
 POST /api/v1/audits
+POST /api/v1/preflights
+POST /api/v1/preflight
 GET  /api/v1/runs
 GET  /api/v1/runs/{run_id}
 GET  /api/v1/runs/{run_id}/events
 GET  /api/v1/runs/{run_id}/report
+GET  /api/v1/runs/{run_id}/environment-report
+GET  /api/v1/runs/{run_id}/environment-evidence
+GET  /api/v1/runs/{run_id}/agent-handoff
 POST /api/v1/runs/{run_id}/reproduce
 ```
 
@@ -33,6 +38,13 @@ provider/model selection, and `no_ai`. It runs the bounded workflow
 synchronously using the existing SQLite state and Docker-only execution
 boundary. The endpoint is intentionally simple for local use; it is not a
 distributed job queue or production worker system.
+
+`POST /api/v1/preflights` (with `/preflight` retained as a singular alias)
+accepts the validated public repository URL and runs the existing safe-by-
+default environment-preflight service. It does not execute the target's tests,
+demos, training, evaluations, or experiments. The three fixed artifact routes
+return bounded, redacted content from that run; they do not accept arbitrary
+filenames or host paths.
 
 `GET /api/v1/config` returns secret-free local capability status for the
 dashboard: Python and platform facts, Git availability, Docker availability,

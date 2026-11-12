@@ -9,6 +9,8 @@ strict Pydantic models before a later evaluator can use it.
 Each case records:
 
 * stable case identity and normalized fixture path,
+* an optional scenario identifier (`S01`-style) when a case is mapped to the
+  v1 scenario matrix,
 * provenance (`CONTROLLED_FIXTURE` in this version),
 * user goal and bounded description,
 * evaluation stratum,
@@ -22,6 +24,12 @@ tests, dependency and Python-runtime failures, missing assets, network and
 credential blockers, configuration and test/output failures, timeouts, unsafe
 commands, repair success and policy stops, documentation gaps, and clean-room
 state leakage.
+
+The required v1 S01-S20 scenario register is packaged separately as
+`scenario_matrix.json` and loaded with `load_scenario_matrix()`. Its entries
+are deliberately initialized as `NOT_RUN`; links to an existing contract do
+not mean that the scenario has passed. Scenarios that require an additional
+fixture or a Docker/manual failure record say so in their notes.
 
 ## Scientific and operational boundaries
 
@@ -44,3 +52,9 @@ The controlled set is deliberately deterministic and inspectable. It is not a
 substitute for a later public-repository evaluation: external repositories need
 pinned commits, access and license checks, resource budgets, and a predeclared
 protocol before they can support generalization claims.
+
+Adapters can attach the observed fixture or repository, exact source commit,
+commands, dependency and security findings, Docker outcome, artifact paths,
+execution timestamp, and bounded environment facts to each observation. These
+fields are optional because the checked-in evaluation set is metadata only;
+they must be populated from the actual run by an owner-run evaluation adapter.

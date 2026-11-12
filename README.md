@@ -264,19 +264,25 @@ python -m pip install -e ".[api]"
 reproscout serve
 ```
 
-The API exposes versioned health, audit, run, event, report, and persisted-plan
-replay endpoints. It is a local development/control API, not a hardened
-multi-tenant service. See [`docs/API.md`](docs/API.md).
+The API exposes versioned health, preflight, audit, run, event, evidence,
+handoff, report, and persisted-plan replay endpoints. It is a local
+development/control API, not a hardened multi-tenant service. See
+[`docs/API.md`](docs/API.md).
 
 The React/TypeScript dashboard is source-checkout tooling:
 
 ```bash
 cd frontend
-npm install
+npm ci
 npm run dev
 ```
 
 See [`docs/DASHBOARD.md`](docs/DASHBOARD.md) for the local workflow.
+
+The public, backend-free site is built from the same frontend with
+`npm run build:public`. It is prepared for GitHub Pages but is not claimed to
+be deployed. See [`docs/DASHBOARD.md`](docs/DASHBOARD.md) for the owner setup
+step and current limitations.
 
 ## Architecture
 

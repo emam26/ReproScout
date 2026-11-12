@@ -26,3 +26,10 @@ An adapter must return observed status, verification level, failure category,
 clean-room result, runtime, attempts, LLM calls, and optional token usage. The
 `false_reproduced` field remains unknown until an independent adjudication is
 available. Do not treat fixture labels as real-repository observations.
+
+For a manual evaluation, retain the CLI/API artifacts for each pinned case and
+populate the optional observation fields with the exact commands, dependency
+findings, security findings, Docker outcome, artifact paths, UTC execution time,
+and environment facts. Record blocked, skipped, and unexecuted cases explicitly
+in the owner's evaluation log; an empty manifest or an unrun adapter is not a
+benchmark result.
