@@ -10,7 +10,6 @@
 [![Python](https://img.shields.io/badge/Python-3.11%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![React](https://img.shields.io/badge/React-local%20dashboard-61DAFB?logo=react&logoColor=black)](https://react.dev/)
 [![Typer](https://img.shields.io/badge/Typer-Python%20CLI-3776AB)](https://typer.tiangolo.com/)
-[![CI](https://github.com/emam26/ReproScout/actions/workflows/ci.yml/badge.svg)](https://github.com/emam26/ReproScout/actions/workflows/ci.yml)
 [![License](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 ReproScout prepares researchers to investigate an open-source project by checking its documented Python environment, dependencies, and setup constraints in a bounded Docker sandbox. It produces evidence-backed readiness artifacts for a researcher or coding agent before any scientific experiment is attempted.
