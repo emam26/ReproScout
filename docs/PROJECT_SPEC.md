@@ -4,16 +4,23 @@
 
 **Name:** ReproScout
 
-**Purpose:** Autonomous reproducibility auditing for open-source AI/ML repositories.
+**Purpose:** Safe environment preflight and evidence-backed handoff for
+open-source AI/ML repositories, with experiment-capable auditing kept as an
+explicit opt-in workflow.
 
-Given a public repository, ReproScout attempts to determine whether the project can be reproduced from a clean environment and records exactly:
+Given a public repository, ReproScout first determines whether its declared
+environment can be prepared from a clean Docker environment and records exactly:
 
 * what worked,
 * what failed,
 * why it failed,
 * what repairs were attempted,
 * what changes were required,
-* whether the result was objectively verified.
+* whether environment readiness was objectively verified.
+
+V1 does not automatically reproduce scientific experiments, model training,
+benchmark evaluations, or paper results. Those workflows remain separate and
+must be explicitly requested.
 
 ---
 
@@ -84,6 +91,16 @@ specific experiment
 hardware target
 ```
 
+The default V1 handoff command is:
+
+```bash
+reproscout preflight https://github.com/owner/project
+```
+
+It produces `environment-report.md`, `environment-evidence.json`, and
+`agent-handoff.md`. These artifacts describe verified environment facts and
+unresolved setup problems; they do not establish project or research success.
+
 ---
 
 # 5. Expected Final Output
@@ -112,6 +129,14 @@ Possible later artifacts:
 Dockerfile.reproduced
 requirements.lock
 environment.yml
+```
+
+Environment-preflight runs additionally write:
+
+```text
+environment-report.md
+environment-evidence.json
+agent-handoff.md
 ```
 
 ---
@@ -191,11 +216,10 @@ V1 focuses on:
 ```text
 L0
 L1
-L2
-L3
 ```
 
-L4 belongs to future paper reproduction.
+L2 and L3 remain available through the explicit audit workflow. L4 belongs to
+future paper reproduction.
 
 ---
 

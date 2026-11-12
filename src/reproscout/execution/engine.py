@@ -125,7 +125,8 @@ class PlanExecutionEngine:
         state = self.store.get_run(run_id)
         if state.stage not in {Stage.PLAN, Stage.DEBUG}:
             raise ExecutionEngineError(
-                f"Execution requires PLAN or DEBUG stage; run is at {state.stage.value}."
+                "Execution requires PLAN or DEBUG stage; run is at "
+                f"{state.stage.value}."
             )
         artifacts = RunArtifacts.create(run_directory, workspace)
         started_at = datetime.now(UTC)
@@ -139,6 +140,11 @@ class PlanExecutionEngine:
         failure_kind: ExecutionFailureKind | None = None
         failed_step_id: str | None = None
         environment_fingerprint: EnvironmentFingerprint | None = None
+        reuse_sandbox = plan.sandbox_scope == "plan"
+        shared_sandbox: Sandbox | None = None
+        shared_network = (
+            "bridge" if any(step.network_required for step in plan.steps) else "none"
+        )
 
         for attempt_number, step in enumerate(plan.steps, start=1):
             if step.command is None:
@@ -146,10 +152,6 @@ class PlanExecutionEngine:
                     run_id,
                     step,
                     attempt_number,
-                )
-                artifacts.append_step(
-                    result,
-                    setup=step.action_type in _SETUP_ACTIONS,
                 )
             else:
                 elapsed = time.monotonic() - started_monotonic
@@ -166,19 +168,26 @@ class PlanExecutionEngine:
                             if environment is not None
                             else "python:3.11-slim"
                         ),
-                        network="bridge" if step.network_required else "none",
+                        network=(
+                            shared_network
+                            if reuse_sandbox
+                            else "bridge" if step.network_required else "none"
+                        ),
                     )
-                    sandbox: Sandbox | None = None
+                    sandbox = shared_sandbox
+                    result: StepExecutionResult | None = None
                     try:
-                        sandbox = self.sandbox_factory(sandbox_config)
-                        sandbox.create()
+                        if sandbox is None:
+                            sandbox = self.sandbox_factory(sandbox_config)
+                            if reuse_sandbox:
+                                shared_sandbox = sandbox
+                            sandbox.create()
                         result = self._execute_step(
                             sandbox,
                             run_id,
                             step,
                             attempt_number,
                             timeout_seconds=min(step.timeout_seconds, remaining),
-                            artifacts=artifacts,
                         )
                         if isinstance(sandbox, DockerSandbox) and not result.timed_out:
                             try:
@@ -186,36 +195,106 @@ class PlanExecutionEngine:
                                     collect_environment_fingerprint(
                                         sandbox,
                                         repository_commit_sha=plan.commit_sha,
-                                        config=sandbox_config,
+                                        config=(
+                                            getattr(sandbox, "config", None)
+                                            or sandbox_config
+                                        ),
                                     )
                                 )
                             except (EnvironmentFingerprintError, SandboxError):
                                 environment_fingerprint = None
-                    except SandboxError:
+                    except SandboxError as exc:
                         result = self._record_sandbox_failure(
-                            run_id, step, attempt_number
+                            run_id,
+                            step,
+                            attempt_number,
+                            error=str(exc),
                         )
                     finally:
-                        if sandbox is not None:
+                        should_destroy = (
+                            sandbox is not None
+                            and (
+                                not reuse_sandbox
+                                or result is None
+                                or result.failure_kind is not None
+                                or attempt_number == len(plan.steps)
+                            )
+                        )
+                        if should_destroy and sandbox is not None:
+                            destroyed = False
                             try:
                                 sandbox.destroy()
-                            except SandboxError:
-                                result = result.model_copy(
-                                    update={
-                                        "stderr": (
-                                            result.stderr + "\nSandbox cleanup failed."
-                                        ).strip(),
-                                        "failure_kind": ExecutionFailureKind.SANDBOX_FAILURE,
-                                    }
+                                destroyed = True
+                            except SandboxError as exc:
+                                cleanup_detail = _truncate(
+                                    redact_sensitive_text(str(exc))
+                                    or "unknown cleanup error",
+                                    self.limits.max_persisted_output_chars,
                                 )
-                    if result.failure_kind is not None:
+                                if result is not None:
+                                    result = result.model_copy(
+                                        update={
+                                            "stderr": (
+                                                result.stderr
+                                                + "\nSandbox cleanup failed: "
+                                                + cleanup_detail
+                                            ).strip(),
+                                            "failure_kind": (
+                                                ExecutionFailureKind.SANDBOX_FAILURE
+                                            ),
+                                        }
+                                    )
+                            if destroyed and shared_sandbox is sandbox:
+                                shared_sandbox = None
+                    if result is not None and result.failure_kind is not None:
                         failure_kind = result.failure_kind
                         failed_step_id = step.step_id
+                if result is None:
+                    raise ExecutionEngineError(
+                        "Sandbox step completed without an execution result."
+                    )
+            artifacts.append_step(
+                result,
+                setup=step.action_type in _SETUP_ACTIONS,
+                log_stdout=_truncate(
+                    redact_sensitive_text(result.stdout),
+                    self.limits.max_log_output_chars,
+                ),
+                log_stderr=_truncate(
+                    redact_sensitive_text(result.stderr),
+                    self.limits.max_log_output_chars,
+                ),
+            )
             step_results.append(result)
             if result.failure_kind is not None:
                 failure_kind = result.failure_kind
                 failed_step_id = step.step_id
                 break
+
+        if shared_sandbox is not None:
+            try:
+                shared_sandbox.destroy()
+            except SandboxError as exc:
+                cleanup_detail = _truncate(
+                    redact_sensitive_text(str(exc)) or "unknown cleanup error",
+                    self.limits.max_persisted_output_chars,
+                )
+                if step_results:
+                    last = step_results[-1]
+                    step_results[-1] = last.model_copy(
+                        update={
+                            "stderr": (
+                                last.stderr
+                                + "\nSandbox cleanup failed: "
+                                + cleanup_detail
+                            ).strip(),
+                            "failure_kind": ExecutionFailureKind.SANDBOX_FAILURE,
+                        }
+                    )
+                    failure_kind = ExecutionFailureKind.SANDBOX_FAILURE
+                    failed_step_id = step_results[-1].step_id
+            finally:
+                shared_sandbox = None
 
         if not finalize or (failure_kind is not None and allow_repair):
             self.store.transition(run_id, Stage.DEBUG)
@@ -248,6 +327,8 @@ class PlanExecutionEngine:
         run_id: str,
         step: PlanStep,
         attempt_number: int,
+        *,
+        error: str | None = None,
     ) -> StepExecutionResult:
         timestamp = datetime.now(UTC)
         self.store.record_attempt(
@@ -262,6 +343,12 @@ class PlanExecutionEngine:
                 },
             ),
         )
+        stderr = "Sandbox could not be created for this step."
+        if error:
+            stderr = _truncate(
+                redact_sensitive_text(error),
+                self.limits.max_persisted_output_chars,
+            )
         return StepExecutionResult(
             step_id=step.step_id,
             attempt_number=attempt_number,
@@ -272,7 +359,7 @@ class PlanExecutionEngine:
             finished_at=timestamp,
             duration=0,
             stdout="",
-            stderr="Sandbox could not be created for this step.",
+            stderr=stderr,
             exit_code=None,
             timed_out=False,
             failure_kind=ExecutionFailureKind.SANDBOX_FAILURE,
@@ -361,7 +448,6 @@ class PlanExecutionEngine:
         attempt_number: int,
         *,
         timeout_seconds: float,
-        artifacts: RunArtifacts,
     ) -> StepExecutionResult:
         attempt = Attempt.create(
             "plan_execution",
@@ -392,20 +478,19 @@ class PlanExecutionEngine:
                 timeout_seconds=timeout_seconds,
             )
             failure = _classify_failure(step, execution)
-            stdout_for_log = _truncate(
-                redact_sensitive_text(execution.stdout),
-                self.limits.max_log_output_chars,
-            )
-            stderr_for_log = _truncate(
-                redact_sensitive_text(execution.stderr),
-                self.limits.max_log_output_chars,
-            )
+            execution_stderr = execution.stderr
+            if execution.cleanup_error:
+                execution_stderr = (
+                    execution_stderr
+                    + "\nSandbox cleanup failed: "
+                    + redact_sensitive_text(execution.cleanup_error)
+                ).strip()
             stdout = _truncate(
-                stdout_for_log,
+                redact_sensitive_text(execution.stdout),
                 self.limits.max_persisted_output_chars,
             )
             stderr = _truncate(
-                stderr_for_log,
+                redact_sensitive_text(execution_stderr),
                 self.limits.max_persisted_output_chars,
             )
             finished_at = datetime.now(UTC)
@@ -428,10 +513,13 @@ class PlanExecutionEngine:
                 source_path=step.source_path,
                 source_location=step.source_location,
             )
-        except SandboxError:
+        except SandboxError as exc:
             finished_at = datetime.now(UTC)
-            stdout_for_log = ""
-            stderr_for_log = "Sandbox execution failed."
+            stderr = _truncate(
+                redact_sensitive_text(str(exc))
+                or "Sandbox execution failed.",
+                self.limits.max_persisted_output_chars,
+            )
             result = StepExecutionResult(
                 step_id=step.step_id,
                 attempt_number=attempt_number,
@@ -442,7 +530,7 @@ class PlanExecutionEngine:
                 finished_at=finished_at,
                 duration=(finished_at - started_at).total_seconds(),
                 stdout="",
-                stderr=stderr_for_log,
+                stderr=stderr,
                 exit_code=None,
                 timed_out=False,
                 failure_kind=ExecutionFailureKind.SANDBOX_FAILURE,
@@ -469,10 +557,4 @@ class PlanExecutionEngine:
             },
         )
         self.store.record_tool_result(run_id, tool_result)
-        artifacts.append_step(
-            result,
-            setup=step.action_type in _SETUP_ACTIONS,
-            log_stdout=stdout_for_log,
-            log_stderr=stderr_for_log,
-        )
         return result

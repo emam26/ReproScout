@@ -8,7 +8,7 @@ import subprocess
 import uuid
 from pathlib import Path
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class CloneError(RuntimeError):
@@ -33,7 +33,7 @@ class CloneResult(BaseModel):
 
     repository_url: str
     workspace_path: Path
-    commit_sha: str
+    commit_sha: str = Field(pattern=r"^[0-9a-fA-F]{40}$")
     branch: str | None = None
 
 
@@ -182,6 +182,8 @@ def clone_repository(
         cwd=destination,
         timeout_seconds=timeout_seconds,
     ).stdout.strip()
+    if not re.fullmatch(r"[0-9a-fA-F]{40}", commit_sha):
+        raise CloneError("Git did not return a full pinned commit SHA-1.")
     branch_result = _run_git(
         ["symbolic-ref", "--quiet", "--short", "HEAD"],
         cwd=destination,

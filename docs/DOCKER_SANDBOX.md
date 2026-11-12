@@ -39,11 +39,17 @@ Each container receives:
 * 128 PID limit
 * a 30-second command timeout
 * a 120-second container-creation timeout
-* a read-only container filesystem with a temporary `/tmp`
+* a read-only container filesystem with temporary `/tmp` and `/runtime` tmpfs
 
 The requested workspace remains writable for future controlled repair phases.
 Only that workspace is mounted. `.env`, SSH-key filenames, common cloud
-credential directories, and symlinks are rejected from mounted workspaces.
+credential directories, and repository-controlled symlinks are rejected from
+mounted workspaces. The sandbox-managed Python environment is created in a
+container-private, UID/GID-owned `/runtime` tmpfs; a pre-existing
+repository-controlled venv is never selected or reused. The only managed-directory
+validation exception is the exact Python venv `lib64 -> lib` link under
+`.reproscout/venv`, and it is accepted only when the destination remains inside
+that venv and the expected venv files are real files.
 
 ## Ownership and cleanup
 

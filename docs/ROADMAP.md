@@ -878,8 +878,8 @@ deploying, or adding production infrastructure.
 Documentation commands match the implementation, CI validates ordinary
 contributions, package contents exclude generated runs/secrets, the wheel and
 source distribution build locally, and a fresh virtual environment can run the
-installed CLI and a safe fixture workflow. Phase 24 publication/deployment
-activities remain not started.
+installed CLI and a safe fixture workflow. Publication and deployment remain
+out of scope for the current milestone.
 
 ---
 
@@ -919,12 +919,47 @@ Remaining gates are Docker/integration execution, fresh wheel checks after these
 changes, and inspection of actual GitHub Actions results. No release or
 publication action has started.
 
+# Phase 24 — Environment Preflight
+
+**Status: INCOMPLETE — implementation added; verification remains user-run**
+
+## Goal
+
+Provide a safe researcher handoff workflow that verifies environment setup
+without entering experiment-capable execution paths.
+
+## Build
+
+* deterministic Python, package, environment, system-tool, asset, and
+  prerequisite detection;
+* setup-only plans executed through the existing Docker engine;
+* fail-closed handling for unsafe instructions and incompatible environments;
+* objective readiness states separate from project or research reproduction;
+* optional provider-independent Gemini/Groq interpretation and diagnosis;
+* `environment-report.md`, `environment-evidence.json`, and
+  `agent-handoff.md` artifacts;
+* offline regression fixtures for ready, incompatible, missing-dependency,
+  unsafe, and incomplete environments.
+
+The existing `audit` workflow remains explicit and experiment-capable. No
+automatic training, evaluation, demo, test, arbitrary repair, or experiment
+execution is part of this phase.
+
+## Acceptance Criteria
+
+Run the focused and full offline tests, Ruff checks, and Docker preflight
+fixtures. Mark this phase DONE only after those checks pass in the user's
+environment.
+
+---
+
 # Current Next Action
 
 The historical summary below predates the pre-release phases above; the phase
 statuses in this section are authoritative.
 
-Phase 20–23 acceptance criteria have passed. Phase 24 remains not started.
+Phase 20–23 acceptance criteria have passed. Phase 24 implementation is
+present; user-run verification is the next action.
 
 ```text
 Phase 14 → DONE
@@ -937,5 +972,5 @@ Phase 20 → DONE
 Phase 21 → DONE
 Phase 22 → DONE
 Phase 23 → DONE
-Phase 24 → NOT STARTED
+Phase 24 → INCOMPLETE
 ```

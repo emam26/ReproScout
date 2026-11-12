@@ -6,7 +6,7 @@ from pathlib import Path
 import pytest
 
 from reproscout.cleanroom import CleanRoomRunner, recipe_from_plan
-from reproscout.execution import PlanExecutionEngine
+from reproscout.execution import ExecutionFailureKind, PlanExecutionEngine
 from reproscout.planning import (
     PlanActionType,
     PlanBaseline,
@@ -101,11 +101,11 @@ def test_clean_room_reproduces_from_fresh_workspace_and_recipe(
                 store,
                 sandbox_factory=_factory(cleanroom_docker_availability),
             ),
+            clone_fn=_clone_from_fixture(source),
         ).run(
             recipe,
             source_workspace=source,
             run_directory=tmp_path / "runs",
-            clone_fn=_clone_from_fixture(source),
         )
 
     assert result.execution.workflow_succeeded is True
@@ -117,9 +117,9 @@ def test_clean_room_reproduces_from_fresh_workspace_and_recipe(
         != original
     )
     clean_run_directory = Path(result.clean_workspace).parent
-    assert clean_run_directory.joinpath("reproduce.sh").is_file()
-    assert clean_run_directory.joinpath("REPRODUCTION.md").is_file()
-    assert clean_run_directory.joinpath("patches.diff").is_file()
+    assert clean_run_directory.parent.joinpath("reproduce.sh").is_file()
+    assert clean_run_directory.parent.joinpath("REPRODUCTION.md").is_file()
+    assert clean_run_directory.parent.joinpath("patches.diff").is_file()
 
 
 @pytest.mark.docker
@@ -131,6 +131,10 @@ def test_clean_room_failure_is_not_claimed_as_reproduced(
     source = tmp_path / "source"
     source.mkdir()
     source.joinpath("app.py").write_text(
+        "from pathlib import Path\n"
+        "Path('clean-room-command-ran.txt').write_text(\n"
+        "    'executed', encoding='utf-8'\n"
+        ")\n"
         "raise SystemExit(9)\n",
         encoding="utf-8",
     )
@@ -143,13 +147,23 @@ def test_clean_room_failure_is_not_claimed_as_reproduced(
                 store,
                 sandbox_factory=_factory(cleanroom_docker_availability),
             ),
+            clone_fn=_clone_from_fixture(source),
         ).run(
             recipe,
             source_workspace=source,
             run_directory=tmp_path / "runs",
-            clone_fn=_clone_from_fixture(source),
         )
 
     assert result.execution.workflow_succeeded is False
+    assert result.execution.failure_kind is ExecutionFailureKind.COMMAND_NONZERO
+    assert result.execution.steps[0].exit_code == 9
+    assert result.execution.steps[0].timed_out is False
     assert result.verification.status.value == "EXECUTION_FAILED"
     assert result.status.status is ReproductionStatus.FAILED
+    assert (
+        Path(result.clean_workspace)
+        .joinpath("clean-room-command-ran.txt")
+        .read_text(encoding="utf-8")
+        == "executed"
+    )
+    assert not source.joinpath("clean-room-command-ran.txt").exists()

@@ -2,12 +2,17 @@ from __future__ import annotations
 
 import asyncio
 import subprocess
+import uuid
 from pathlib import Path
 
 import pytest
 
 from reproscout.analysis import RepositoryAnalyzer
-from reproscout.execution import ExecutionFailureKind, PlanExecutionEngine
+from reproscout.execution import (
+    ExecutionFailureKind,
+    ExecutionRunResult,
+    PlanExecutionEngine,
+)
 from reproscout.planning import ReproductionPlanner
 from reproscout.repo import CloneResult, build_manifest, parse_github_url
 from reproscout.sandbox import (
@@ -68,7 +73,7 @@ def _prepare_pipeline(
 ):
     fixture_name = manifest.workspace_path.parents[1].name
     run = store.create_run(
-        run_id=f"docker-{fixture_name}",
+        run_id=f"docker-{fixture_name}-{uuid.uuid4().hex}",
         context={
             "commit_sha": manifest.commit_sha,
             "repository": f"{manifest.owner}/{manifest.repository_name}",
@@ -118,7 +123,7 @@ def test_controlled_pipeline_succeeds_only_inside_docker(
         events = store.list_events(run_id)
 
     container_ids = [step.container_id for step in result.steps]
-    assert result.workflow_succeeded is True
+    assert result.workflow_succeeded is True, _execution_failure_message(result)
     assert [step.stdout.strip() for step in result.steps] == [
         "fixture-success",
         "fixture-second",
@@ -133,6 +138,19 @@ def test_controlled_pipeline_succeeds_only_inside_docker(
         for container_id in container_ids
         if container_id is not None
     )
+    assert not (workspace / ".reproscout" / "venv").exists()
+
+
+def _execution_failure_message(result: ExecutionRunResult) -> str:
+    steps = "; ".join(
+        (
+            f"step={step.step_id!r} command={step.command!r} "
+            f"exit_code={step.exit_code!r} timed_out={step.timed_out!r} "
+            f"failure_kind={step.failure_kind!r} stderr={step.stderr!r}"
+        )
+        for step in result.steps
+    )
+    return f"failure_kind={result.failure_kind!r}; {steps}"
 
 
 @pytest.mark.docker

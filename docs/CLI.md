@@ -11,6 +11,20 @@ finite planning, Docker-only execution, objective verification, clean-room
 verification when the first workflow succeeds, status calculation, and report
 writing. It prints a concise summary; `--json` emits a machine-readable result.
 
+For the default research handoff, use the environment-only workflow:
+
+```text
+reproscout preflight <github-url> [--runs-dir PATH] [--ai] [--json]
+```
+
+`preflight` verifies only bounded setup facts inside Docker. It never runs
+tests, demos, training, evaluations, or arbitrary README commands. Each run
+writes `environment-report.md`, `environment-evidence.json`, and
+`agent-handoff.md`; a `READY` result means the declared environment checks
+passed, not that the project or a research result was reproduced. Non-`READY`
+preflight statuses return exit code one while preserving the artifacts for
+inspection.
+
 The other supported commands are:
 
 ```text

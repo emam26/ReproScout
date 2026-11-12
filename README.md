@@ -1,16 +1,17 @@
 # 🧭 ReproScout
 
-> Autonomous agent for reproducing, diagnosing, and repairing open-source research projects.
+> AI-assisted environment preflight and evidence-backed handoff for open-source research projects.
 
 [![CI](https://github.com/emam26/ReproScout/actions/workflows/ci.yml/badge.svg)](https://github.com/emam26/ReproScout/actions/workflows/ci.yml)
 ![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-3776AB)
 ![License: MIT](https://img.shields.io/badge/license-MIT-green)
 
-ReproScout helps answer a practical question: **can someone reproduce this
-research repository from a clean environment, and what evidence explains the
-answer?** Give it a public GitHub repository. It inspects the project, follows
-its documented workflow, runs target commands in Docker, records failures,
-diagnoses likely causes, and produces an evidence-backed report.
+ReproScout helps researchers establish a trustworthy environment handoff for a
+public research repository. Its default `preflight` workflow detects setup
+requirements, prepares a bounded Docker environment, diagnoses setup failures,
+and writes evidence for another coding agent. The existing `audit` workflow is
+the explicit opt-in path for target tests, demos, and other reproduction
+workflows.
 
 > [!NOTE]
 > ReproScout is pre-release. The package and CLI now use the `reproscout` name;
@@ -90,6 +91,16 @@ reproscout doctor
 reproscout inspect https://github.com/user/project --no-ai
 ```
 
+Prepare an environment handoff without running project workflows:
+
+```bash
+reproscout preflight https://github.com/user/project
+```
+
+This writes `environment-report.md`, `environment-evidence.json`, and
+`agent-handoff.md` beneath the run directory. `READY` means only that the
+declared environment checks passed; it is not evidence of a reproduced result.
+
 Run a bounded audit:
 
 ```bash
@@ -136,6 +147,7 @@ The current CLI is deliberately small:
 | --- | --- |
 | `doctor` | Check local prerequisites without revealing credentials. |
 | `inspect <url>` | Clone and analyze a repository without executing target code. |
+| `preflight <url>` | Verify a bounded Docker environment without running target workflows. |
 | `audit <url>` | Run intake, analysis, Docker execution, verification, and reporting. |
 | `runs` | List persisted runs. |
 | `status <run-id>` | Show persisted control-plane state. |

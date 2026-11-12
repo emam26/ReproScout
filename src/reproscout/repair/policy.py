@@ -159,12 +159,15 @@ def validate_repair_action(
             raise RepairPolicyError("Patch is missing or exceeds the configured bound.")
         if "\x00" in patch or "--- /" in patch or "+++ /" in patch:
             raise RepairPolicyError("Patch contains unsafe absolute paths.")
-    elif action.action_type in {
-        RepairActionType.GATHER_MORE_EVIDENCE,
-        RepairActionType.STOP_UNREPAIRABLE,
-    }:
-        if arguments:
-            raise RepairPolicyError("Control actions cannot carry execution arguments.")
+    elif (
+        action.action_type
+        in {
+            RepairActionType.GATHER_MORE_EVIDENCE,
+            RepairActionType.STOP_UNREPAIRABLE,
+        }
+        and arguments
+    ):
+        raise RepairPolicyError("Control actions cannot carry execution arguments.")
     if (
         action.action_type is RepairActionType.APPLY_MINIMAL_PATCH
         and action.reversibility is not Reversibility.ROLLBACK_REQUIRED

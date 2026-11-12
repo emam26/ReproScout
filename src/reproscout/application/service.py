@@ -19,7 +19,11 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
-from reproscout.analysis import RepositoryAnalysis, RepositoryAnalyzer
+from reproscout.analysis import (
+    RepositoryAnalysis,
+    RepositoryAnalysisError,
+    RepositoryAnalyzer,
+)
 from reproscout.cleanroom import CleanRoomError, CleanRoomRunner, recipe_from_plan
 from reproscout.config import get_settings
 from reproscout.diagnosis import (
@@ -30,10 +34,18 @@ from reproscout.diagnosis import (
 from reproscout.diagnostics import EvidenceBuilder, normalize_failure
 from reproscout.diagnostics.verification import contract_from_plan
 from reproscout.execution import ExecutionRunResult, PlanExecutionEngine
-from reproscout.llm import LLMProvider, create_provider, get_llm_settings
+from reproscout.llm import LLMError, LLMProvider, create_provider, get_llm_settings
 from reproscout.planning import ReproductionPlan, ReproductionPlanner
+from reproscout.preflight import (
+    PreflightArtifactWriter,
+    PreflightPlanner,
+    PreflightResult,
+    evaluate_preflight,
+    inspect_environment,
+)
 from reproscout.repo.clone import (
     CloneError,
+    CloneResult,
     RunWorkspace,
     RunWorkspaceError,
     clone_repository,
@@ -90,6 +102,17 @@ class AuditRequest(BaseModel):
         if normalized not in _SUPPORTED_GOALS:
             raise ValueError("goal must be one of: auto, install, tests, demo")
         return normalized
+
+
+class PreflightRequest(BaseModel):
+    """Safe-by-default request for environment setup only."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    repository_url: str = Field(min_length=1, max_length=2_000)
+    no_ai: bool = True
+    provider: str | None = Field(default=None, max_length=50)
+    model: str | None = Field(default=None, max_length=200)
 
 
 class AuditResult(BaseModel):
@@ -195,6 +218,174 @@ class AuditService:
             manifest=manifest,
             analysis=analysis,
         )
+
+    def preflight(self, request: PreflightRequest) -> PreflightResult:
+        """Prepare and verify an isolated environment without target workflows."""
+
+        repository, workspace = self._prepare_intake(request.repository_url)
+        with SQLiteRunStore(self.database_path) as store:
+            run = store.create_run(
+                run_id=workspace.run_id,
+                context={
+                    "repository_url": repository.normalized_url,
+                    "workflow": "environment-preflight",
+                    "ai_enabled": not request.no_ai,
+                },
+            )
+            clone_result: CloneResult | None = None
+            try:
+                clone = self.clone_fn(
+                    repository.normalized_url, workspace.repository_path
+                )
+                if isinstance(clone, CloneResult):
+                    clone_result = clone
+                manifest = self.manifest_fn(repository, clone)
+                store.record_agent_action(
+                    run.run_id,
+                    AgentAction.create(
+                        "repository_intake_completed",
+                        {
+                            "repository": f"{repository.owner}/{repository.name}",
+                            "commit_sha": manifest.commit_sha,
+                            "workflow": "environment-preflight",
+                        },
+                    ),
+                )
+                store.transition(run.run_id, Stage.ANALYZE)
+                llm_note: str | None = None
+                try:
+                    analysis = self._analyze(manifest, request)
+                except (LLMError, RepositoryAnalysisError) as exc:
+                    if request.no_ai:
+                        raise
+                    analysis = asyncio.run(
+                        self.analyzer.analyze(manifest, provider=None)
+                    )
+                    llm_note = (
+                        "Optional LLM interpretation was unavailable; deterministic "
+                        f"analysis was used ({type(exc).__name__})."
+                    )
+                inspection = inspect_environment(manifest, analysis)
+                if llm_note is not None:
+                    inspection = inspection.model_copy(
+                        update={
+                            "unverified_capabilities": [
+                                *inspection.unverified_capabilities,
+                                llm_note,
+                            ]
+                        }
+                    )
+                store.record_agent_action(
+                    run.run_id,
+                    AgentAction.create(
+                        "environment_prerequisites_detected",
+                        {
+                            "dependency_sources": len(inspection.dependency_sources),
+                            "system_tools": len(inspection.system_tools),
+                            "unsafe_findings": len(inspection.unsafe_findings),
+                        },
+                    ),
+                )
+                store.transition(run.run_id, Stage.PLAN)
+                plan = PreflightPlanner().create_plan(analysis, inspection)
+                self._write_plan(workspace.run_dir, plan)
+                execution = self.execution_factory(store).execute(
+                    plan,
+                    run_id=run.run_id,
+                    run_directory=workspace.run_dir,
+                    workspace=manifest.workspace_path,
+                    allow_repair=False,
+                    finalize=True,
+                )
+                diagnosis = None
+                failed = next(
+                    (step for step in execution.steps if step.failure_kind is not None),
+                    None,
+                )
+                if failed is not None and failed.command is not None:
+                    try:
+                        diagnosis = self._diagnose_if_needed(
+                            store,
+                            execution,
+                            manifest,
+                            provider=self._provider(request),
+                        )
+                    except LLMError:
+                        diagnosis = None
+                assessment = evaluate_preflight(
+                    inspection,
+                    plan,
+                    execution,
+                    diagnosis=diagnosis,
+                )
+                artifacts = PreflightArtifactWriter(workspace.run_dir).write(
+                    run_id=run.run_id,
+                    manifest=manifest,
+                    plan=plan,
+                    inspection=inspection,
+                    assessment=assessment,
+                )
+                return PreflightResult(
+                    run_id=run.run_id,
+                    repository=f"{manifest.owner}/{manifest.repository_name}",
+                    commit_sha=manifest.commit_sha,
+                    status=assessment.status,
+                    verified_environment=assessment.verified_environment,
+                    artifact_paths=artifacts,
+                )
+            except (
+                CloneError,
+                ManifestError,
+                RepositoryUrlError,
+                RunWorkspaceError,
+                SandboxError,
+            ) as exc:
+                safe_error = redact_sensitive_text(str(exc))[:2_000]
+                store.append_event(
+                    run.run_id,
+                    EventType.AGENT_ACTION_RECORDED,
+                    {
+                        "action": "environment_preflight_failed",
+                        "detail": safe_error,
+                    },
+                )
+                artifact_note = self._write_preflight_failure(
+                    workspace.run_dir,
+                    run.run_id,
+                    repository.normalized_url,
+                    safe_error,
+                    commit_sha=(
+                        clone_result.commit_sha if clone_result is not None else None
+                    ),
+                )
+                suffix = f" Artifacts: {artifact_note}." if artifact_note else ""
+                raise ServiceError(
+                    f"Environment preflight failed: {safe_error}.{suffix}"
+                ) from exc
+            except Exception as exc:
+                safe_error = redact_sensitive_text(str(exc))[:2_000]
+                store.append_event(
+                    run.run_id,
+                    EventType.AGENT_ACTION_RECORDED,
+                    {
+                        "action": "environment_preflight_failed",
+                        "detail": "An internal bounded preflight step failed.",
+                    },
+                )
+                artifact_note = self._write_preflight_failure(
+                    workspace.run_dir,
+                    run.run_id,
+                    repository.normalized_url,
+                    safe_error,
+                    commit_sha=(
+                        clone_result.commit_sha if clone_result is not None else None
+                    ),
+                )
+                suffix = f" Artifacts: {artifact_note}." if artifact_note else ""
+                raise ServiceError(
+                    "Environment preflight failed safely; inspect the persisted "
+                    f"run events.{suffix}"
+                ) from exc
 
     def audit(self, request: AuditRequest) -> AuditResult:
         """Run intake through objective verification and a clean-room rerun."""
@@ -430,13 +621,16 @@ class AuditService:
     def _analyze(
         self,
         manifest: RepositoryManifest,
-        request: AuditRequest,
+        request: AuditRequest | PreflightRequest,
     ) -> RepositoryAnalysis:
         return asyncio.run(
             self.analyzer.analyze(manifest, provider=self._provider(request))
         )
 
-    def _provider(self, request: AuditRequest) -> LLMProvider | None:
+    def _provider(
+        self,
+        request: AuditRequest | PreflightRequest,
+    ) -> LLMProvider | None:
         if request.no_ai:
             return None
         settings = get_llm_settings()
@@ -617,6 +811,25 @@ class AuditService:
         ):
             raise ServiceError("Plan contained credential-like material.")
         (run_directory / "plan.json").write_text(serialized + "\n", encoding="utf-8")
+
+    @staticmethod
+    def _write_preflight_failure(
+        run_directory: Path,
+        run_id: str,
+        repository: str,
+        error: str,
+        commit_sha: str | None = None,
+    ) -> Path | None:
+        try:
+            paths = PreflightArtifactWriter(run_directory).write_failure(
+                run_id=run_id,
+                repository=repository,
+                error=error,
+                commit_sha=commit_sha,
+            )
+        except (OSError, ValueError):
+            return None
+        return paths.run_directory
 
 
 def doctor_report(*, runs_dir: Path | None = None) -> dict[str, object]:

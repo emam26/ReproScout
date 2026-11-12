@@ -29,10 +29,12 @@ class FakeSandbox(Sandbox):
         responses: list[ExecutionResult | SandboxError],
         *,
         create_error: SandboxError | None = None,
+        destroy_error: SandboxError | None = None,
     ) -> None:
         self.config = config
         self.responses = responses
         self.create_error = create_error
+        self.destroy_error = destroy_error
         self.created = False
         self.destroyed = False
         self.commands: list[tuple[str, float | None]] = []
@@ -55,6 +57,8 @@ class FakeSandbox(Sandbox):
         return response
 
     def destroy(self) -> None:
+        if self.destroy_error is not None:
+            raise self.destroy_error
         self.destroyed = True
 
 
@@ -200,6 +204,47 @@ def test_successful_plan_runs_in_order_and_persists_evidence(tmp_path: Path) -> 
         encoding="utf-8"
     )
     assert (run_directory / "events.jsonl").is_file()
+
+
+def test_plan_scoped_sandbox_persists_setup_between_steps(tmp_path: Path) -> None:
+    run_directory, workspace = _workspace(tmp_path)
+    responses = [
+        _result("install", stdout="installed\n"),
+        _result("check", stdout="No broken requirements found.\n"),
+    ]
+    created: list[FakeSandbox] = []
+
+    def factory(config: SandboxConfig) -> FakeSandbox:
+        sandbox = FakeSandbox(config, responses)
+        created.append(sandbox)
+        return sandbox
+
+    install = _step(
+        "step-001",
+        "python -m pip install -r requirements.txt",
+        action=PlanActionType.INSTALL_DEPENDENCY,
+    ).model_copy(update={"network_required": True})
+    check = _step("step-002", "python -m pip check")
+    plan = _plan([install, check]).model_copy(update={"sandbox_scope": "plan"})
+
+    with SQLiteRunStore(tmp_path / "state.sqlite3") as store:
+        run_id = _create_planned_run(store)
+        result = PlanExecutionEngine(store, sandbox_factory=factory).execute(
+            plan,
+            run_id=run_id,
+            run_directory=run_directory,
+            workspace=workspace,
+        )
+
+    assert result.workflow_succeeded is True
+    assert len(created) == 1
+    assert created[0].created is True
+    assert created[0].destroyed is True
+    assert [command for command, _ in created[0].commands] == [
+        "python -m pip install -r requirements.txt",
+        "python -m pip check",
+    ]
+    assert created[0].config.network == "bridge"
 
 
 def test_nonzero_command_stops_plan_without_repair(tmp_path: Path) -> None:
@@ -422,7 +467,13 @@ def test_sandbox_creation_failure_is_workflow_failure(tmp_path: Path) -> None:
     run_directory, workspace = _workspace(tmp_path)
 
     def factory(config: SandboxConfig) -> FakeSandbox:
-        return FakeSandbox(config, [], create_error=SandboxError("unavailable"))
+        return FakeSandbox(
+            config,
+            [],
+            create_error=SandboxError(
+                "Docker sandbox initialization failed: permission denied"
+            ),
+        )
 
     with SQLiteRunStore(tmp_path / "state.sqlite3") as store:
         run_id = _create_planned_run(store)
@@ -435,6 +486,42 @@ def test_sandbox_creation_failure_is_workflow_failure(tmp_path: Path) -> None:
 
     assert result.failure_kind is ExecutionFailureKind.SANDBOX_FAILURE
     assert result.workflow_succeeded is False
+    assert "permission denied" in result.steps[0].stderr
+
+
+def test_sandbox_cleanup_failure_is_recorded_as_workflow_failure(
+    tmp_path: Path,
+) -> None:
+    run_directory, workspace = _workspace(tmp_path)
+    created: list[FakeSandbox] = []
+
+    def factory(config: SandboxConfig) -> FakeSandbox:
+        sandbox = FakeSandbox(
+            config,
+            [_result("demo")],
+            destroy_error=SandboxError("cleanup failed TOKEN=secret"),
+        )
+        created.append(sandbox)
+        return sandbox
+
+    with SQLiteRunStore(tmp_path / "state.sqlite3") as store:
+        run_id = _create_planned_run(store)
+        result = PlanExecutionEngine(store, sandbox_factory=factory).execute(
+            _plan([_step("step-001", "python demo.py")]),
+            run_id=run_id,
+            run_directory=run_directory,
+            workspace=workspace,
+        )
+
+    assert result.workflow_succeeded is False
+    assert result.failure_kind is ExecutionFailureKind.SANDBOX_FAILURE
+    assert "cleanup failed" in result.steps[0].stderr
+    assert "secret" not in result.steps[0].stderr
+    command = json.loads(
+        (run_directory / "commands.jsonl").read_text(encoding="utf-8").splitlines()[0]
+    )
+    assert command["failure_kind"] == ExecutionFailureKind.SANDBOX_FAILURE.value
+    assert created[0].destroyed is False
 
 
 def test_sandbox_factory_failure_is_workflow_failure(tmp_path: Path) -> None:

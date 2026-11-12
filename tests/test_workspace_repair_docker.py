@@ -1,11 +1,12 @@
 from __future__ import annotations
 
+import uuid
 from pathlib import Path
 
 import pytest
 
 from reproscout.diagnostics import EvidenceBuilder, normalize_failure
-from reproscout.execution import PlanExecutionEngine
+from reproscout.execution import ExecutionRunResult, PlanExecutionEngine
 from reproscout.planning import (
     PlanActionType,
     PlanBaseline,
@@ -83,7 +84,9 @@ def test_repairable_fixture_retries_inside_docker_and_rolls_back(
         )
 
     with SQLiteRunStore(tmp_path / "state.sqlite3") as store:
-        run = store.create_run(run_id=f"docker-repair-{tmp_path.name}")
+        run = store.create_run(
+            run_id=f"docker-repair-{tmp_path.name}-{uuid.uuid4().hex}"
+        )
         store.transition(run.run_id, Stage.ANALYZE)
         store.transition(run.run_id, Stage.PLAN)
         execution = PlanExecutionEngine(store, sandbox_factory=factory)
@@ -117,11 +120,28 @@ def test_repairable_fixture_retries_inside_docker_and_rolls_back(
         )
         state = store.get_run(run.run_id)
 
-    assert result.initial.workflow_succeeded is False
-    assert result.retry is not None and result.retry.workflow_succeeded is True
+    assert result.initial.workflow_succeeded is False, _execution_failure_message(
+        result.initial
+    )
+    assert result.retry is not None
+    assert result.retry.workflow_succeeded is True, _execution_failure_message(
+        result.retry
+    )
     assert result.repair is not None
     assert result.repair.status is RepairExperimentStatus.IMPROVED
     assert workspace.joinpath("app.py").read_text(encoding="utf-8") == original
     assert run_directory.joinpath("patches.diff").is_file()
     assert state.stage is Stage.DEBUG
     assert state.outcome is None
+
+
+def _execution_failure_message(result: ExecutionRunResult) -> str:
+    steps = "; ".join(
+        (
+            f"step={step.step_id!r} command={step.command!r} "
+            f"exit_code={step.exit_code!r} timed_out={step.timed_out!r} "
+            f"failure_kind={step.failure_kind!r} stderr={step.stderr!r}"
+        )
+        for step in result.steps
+    )
+    return f"failure_kind={result.failure_kind!r}; {steps}"

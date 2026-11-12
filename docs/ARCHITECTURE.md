@@ -7,6 +7,27 @@ agent. Its control flow is explicit:
 INTAKE → ANALYZE → PLAN → SETUP → EXECUTE → DEBUG → VERIFY → REPORT → DONE
 ```
 
+## Environment preflight boundary
+
+The public environment-preflight workflow is a separate branch over the same
+intake, analysis, state, and Docker execution components:
+
+```text
+INTAKE → ANALYZE → PREFLIGHT PLAN → Docker setup checks → readiness assessment
+                                             ↓
+                              environment-report.md
+                              environment-evidence.json
+                              agent-handoff.md
+```
+
+Preflight may verify Python, pip, declared dependency installation, `pip
+check`, and explicitly detected system tools. Setup steps use one bounded
+plan-scoped sandbox so the installed environment persists into subsequent
+checks. It does not select or execute
+repository tests, demos, training, evaluations, or experiment commands. The
+existing `audit` workflow remains the explicit target-workflow path and is not
+implicitly entered by preflight.
+
 ## Components
 
 * **Intake** validates public GitHub URLs, clones with sterile Git settings,

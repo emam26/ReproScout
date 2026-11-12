@@ -5,7 +5,12 @@ from pathlib import Path
 
 import pytest
 
-from reproscout.repo.clone import CloneError, clone_repository, create_run_workspace
+from reproscout.repo.clone import (
+    CloneError,
+    CloneResult,
+    clone_repository,
+    create_run_workspace,
+)
 from reproscout.repo.manifest import build_manifest
 from reproscout.repo.urls import RepositoryUrlError, parse_github_url
 
@@ -152,3 +157,12 @@ def test_clone_failure_is_reported(tmp_path: Path) -> None:
 
     with pytest.raises(CloneError, match="Git command failed"):
         clone_repository((tmp_path / "does-not-exist").as_uri(), destination)
+
+
+def test_clone_result_requires_a_full_pinned_revision(tmp_path: Path) -> None:
+    with pytest.raises(ValueError):
+        CloneResult(
+            repository_url="https://github.com/example/project",
+            workspace_path=tmp_path,
+            commit_sha="short-revision",
+        )

@@ -1,6 +1,8 @@
 from typer.testing import CliRunner
 
+from reproscout.application import PreflightResult
 from reproscout.cli import app
+from reproscout.preflight import PreflightArtifactPaths, PreflightStatus
 
 runner = CliRunner()
 
@@ -11,6 +13,7 @@ def test_help_command_exits_successfully() -> None:
     assert result.exit_code == 0
     assert "Audit whether open-source software can be reproduced" in result.stdout
     assert "audit" in result.stdout
+    assert "preflight" in result.stdout
     assert "inspect" in result.stdout
     assert "doctor" in result.stdout
 
@@ -119,3 +122,36 @@ def test_cleanup_rejects_path_traversal_before_docker_access() -> None:
 
     assert result.exit_code == 1
     assert "unsupported path characters" in result.stderr
+
+
+def test_preflight_non_ready_status_returns_failure_exit_code(
+    tmp_path,
+    monkeypatch,
+) -> None:
+    paths = PreflightArtifactPaths(
+        run_directory=tmp_path,
+        environment_report=tmp_path / "environment-report.md",
+        environment_evidence=tmp_path / "environment-evidence.json",
+        agent_handoff=tmp_path / "agent-handoff.md",
+    )
+
+    def fake_preflight(self, request):  # type: ignore[no-untyped-def]
+        del self, request
+        return PreflightResult(
+            run_id="fixture-run",
+            repository="example/project",
+            commit_sha="a" * 40,
+            status=PreflightStatus.INCOMPLETE,
+            verified_environment=False,
+            artifact_paths=paths,
+        )
+
+    monkeypatch.setattr("reproscout.cli.AuditService.preflight", fake_preflight)
+
+    result = runner.invoke(
+        app,
+        ["preflight", "https://github.com/example/project", "--json"],
+    )
+
+    assert result.exit_code == 1
+    assert '"status": "INCOMPLETE"' in result.stdout

@@ -23,6 +23,12 @@ The system should eventually:
 
 The goal is NOT to build a generic coding agent.
 
+The default researcher handoff workflow is environment preflight: inspect a
+pinned repository, detect setup prerequisites, prepare a bounded Docker
+environment, and report only objectively verified environment facts. Tests,
+demos, training, evaluations, paper experiments, and other target workflows
+remain explicit opt-in actions through the existing audit path.
+
 ---
 
 ## Read Before Working
@@ -209,6 +215,11 @@ Do not prioritize yet:
 * arbitrary operating systems,
 * paper-result reproduction,
 * autonomous pull requests.
+
+Environment preflight must not automatically execute model training,
+evaluations, experiment scripts, or arbitrary repository instructions. README
+and model-produced commands are untrusted data; only deterministic,
+policy-checked setup commands may reach the Docker execution layer.
 
 Build the core engine first.
 

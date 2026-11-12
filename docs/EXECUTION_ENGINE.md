@@ -19,10 +19,14 @@ means that the workflow completed without an execution failure. It does not mean
 
 ## Deterministic execution policy
 
-Plan steps execute sequentially in one disposable, labeled Docker container.
-The first unavailable prerequisite, non-zero exit, timeout, sandbox failure, or
-resource/network/dependency failure stops the plan. Phase 7 performs no repair,
-source change, speculative retry, or LLM-controlled state transition.
+Plan steps execute sequentially and stop at the first unavailable prerequisite,
+non-zero exit, timeout, sandbox failure, or resource/network/dependency failure.
+The default `sandbox_scope` is `step`, so ordinary experiment-capable plans use
+an independent disposable, labeled Docker container for each command. The
+environment-preflight planner explicitly uses `sandbox_scope="plan"` so its
+bounded installation and subsequent `pip check` share one isolated workspace;
+that scope is not enabled implicitly for other plans. Phase 7 performs no
+repair, source change, speculative retry, or LLM-controlled state transition.
 
 Working directories are workspace-relative and translated to `/workspace` in
 the container. The plan safety layer rejects credential material, privileged

@@ -11,9 +11,15 @@ from typing import Annotated
 import typer
 
 from . import __version__
-from .application import AuditRequest, AuditService, ServiceError
+from .application import (
+    AuditRequest,
+    AuditService,
+    PreflightRequest,
+    ServiceError,
+)
 from .application.service import doctor_report
 from .config import get_settings
+from .preflight import PreflightStatus
 from .repo.clone import (
     CloneError,
     RunWorkspaceError,
@@ -121,6 +127,54 @@ def audit(
     typer.echo(f"Report: {result.report_path}")
     if result.reproduction_package_path is not None:
         typer.echo(f"Reproduction package: {result.reproduction_package_path}")
+
+
+@app.command()
+def preflight(
+    repository_url: Annotated[str, typer.Argument(help="HTTPS GitHub repository URL.")],
+    runs_dir: Annotated[
+        Path | None,
+        typer.Option(
+            "--runs-dir",
+            help="Directory for preflight state and artifacts.",
+            path_type=Path,
+        ),
+    ] = None,
+    ai: Annotated[
+        bool,
+        typer.Option(
+            "--ai",
+            help="Enable optional Gemini/Groq interpretation and diagnosis.",
+        ),
+    ] = False,
+    json_output: Annotated[
+        bool,
+        typer.Option("--json", help="Emit one machine-readable JSON result."),
+    ] = False,
+) -> None:
+    """Prepare and verify an environment without running project workflows."""
+
+    try:
+        result = AuditService(runs_dir).preflight(
+            PreflightRequest(repository_url=repository_url, no_ai=not ai)
+        )
+    except (ServiceError, ValueError) as exc:
+        _error(str(exc), json_output=json_output)
+        raise typer.Exit(code=1) from exc
+    payload = result.model_dump(mode="json")
+    if json_output:
+        typer.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True))
+    else:
+        typer.echo("Environment preflight complete.\n")
+        typer.echo(f"Run ID: {result.run_id}")
+        typer.echo(f"Status: {result.status.value}")
+        verified = "yes" if result.verified_environment else "no"
+        typer.echo(f"Verified environment: {verified}")
+        typer.echo(f"Environment report: {result.artifact_paths.environment_report}")
+        typer.echo(f"Evidence: {result.artifact_paths.environment_evidence}")
+        typer.echo(f"Agent handoff: {result.artifact_paths.agent_handoff}")
+    if result.status is not PreflightStatus.READY:
+        raise typer.Exit(code=1)
 
 
 @app.command()
@@ -288,13 +342,14 @@ def list_runs(
         try:
             with SQLiteRunStore(database) as store:
                 for state in store.list_runs():
+                    report_path = _display_report_path(root, state.run_id)
                     rows.append(
                         {
                             "run_id": state.run_id,
                             "stage": state.stage.value,
                             "outcome": state.outcome.value if state.outcome else None,
-                            "report": str(root / state.run_id / "report.md")
-                            if (root / state.run_id / "report.md").is_file()
+                            "report": str(report_path)
+                            if report_path is not None
                             else None,
                         }
                     )
@@ -309,13 +364,16 @@ def list_runs(
                 if entry.is_dir()
                 and not entry.is_symlink()
                 and _SAFE_RUN_ID.fullmatch(entry.name)
-                and (entry / "report.md").is_file()
+                and _display_report_path(root, entry.name) is not None
             )
         except OSError as exc:
             _error(f"Could not list runs: {exc}", json_output=json_output)
             raise typer.Exit(code=1) from exc
         rows = [
-            {"run_id": entry.name, "report": str(entry / "report.md")}
+            {
+                "run_id": entry.name,
+                "report": str(_display_report_path(root, entry.name)),
+            }
             for entry in entries
         ]
     if json_output:
@@ -357,6 +415,7 @@ def status(
     except (RunNotFoundError, OSError) as exc:
         _error(f"Run not found: {run_id}", json_output=json_output)
         raise typer.Exit(code=1) from exc
+    report_path = _display_report_path(root, run_id)
     payload = {
         "run_id": state.run_id,
         "stage": state.stage.value,
@@ -364,9 +423,7 @@ def status(
         "created_at": state.created_at.isoformat(),
         "updated_at": state.updated_at.isoformat(),
         "event_count": len(events),
-        "report": str(root / run_id / "report.md")
-        if (root / run_id / "report.md").is_file()
-        else None,
+        "report": str(report_path) if report_path is not None else None,
     }
     if json_output:
         typer.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True))
@@ -394,9 +451,12 @@ def report(
     """Display a completed run's human-readable report."""
 
     run_directory = _resolve_run_directory(run_id, runs_dir)
-    report_path = run_directory / "report.md"
-    if not report_path.is_file():
-        _error(f"No report.md artifact exists for run {run_id!r}.", json_output=False)
+    report_path = _display_report_path(run_directory, "")
+    if report_path is None:
+        _error(
+            f"No report artifact exists for run {run_id!r}.",
+            json_output=False,
+        )
         raise typer.Exit(code=1)
     try:
         content = report_path.read_text(encoding="utf-8")
@@ -521,6 +581,17 @@ def _resolve_run_directory(run_id: str, runs_dir: Path | None) -> Path:
         _error(f"Run directory not found for {run_id!r}.", json_output=False)
         raise typer.Exit(code=1)
     return candidate
+
+
+def _display_report_path(root: Path, run_id: str) -> Path | None:
+    """Return the ordinary report or the environment-preflight report."""
+
+    directory = root if not run_id else root / run_id
+    for filename in ("report.md", "environment-report.md"):
+        candidate = directory / filename
+        if candidate.is_file():
+            return candidate
+    return None
 
 
 def _validate_run_id(run_id: str) -> None:

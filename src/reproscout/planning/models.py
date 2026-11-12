@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from enum import StrEnum
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
@@ -81,6 +82,7 @@ class ReproductionPlan(BaseModel):
     steps: list[PlanStep]
     required_milestones: list[str] = Field(default_factory=list, max_length=10)
     resolved_environment: ResolvedEnvironment | None = None
+    sandbox_scope: Literal["step", "plan"] = "step"
     overall_timeout_seconds: float = Field(gt=0, le=86_400)
 
     @model_validator(mode="after")

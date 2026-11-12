@@ -23,7 +23,7 @@ class RepositoryManifest(BaseModel):
     normalized_url: str
     owner: str
     repository_name: str
-    commit_sha: str
+    commit_sha: str = Field(pattern=r"^[0-9a-fA-F]{40}$")
     branch: str | None = None
     workspace_path: Path
     important_files: list[str] = Field(default_factory=list)
