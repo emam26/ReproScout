@@ -1,5 +1,12 @@
 
-![ReproScout compass logo](frontend/public/reproscout-logo.png)
+<p align="center">
+  <img
+    src="frontend/reproscout-logo.png"
+    alt="ReproScout compass logo"
+    width="115"
+  />
+</p>
+
 
 
 <h1 align="center">ReproScout</h1>
