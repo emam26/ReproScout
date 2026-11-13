@@ -139,32 +139,6 @@ For example, a `READY` assessment means the environment checks required by the s
 
 Use `reproscout --help` and the [CLI reference](docs/CLI.md) for the authoritative command contracts and option details.
 
-## Local Dashboard and Public Website
-
-### Local dashboard
-
-The dashboard is a local development interface. Install the API extra before starting its backend:
-
-```bash
-uv tool install --reinstall --editable ".[api]"
-reproscout serve
-```
-
-In a second terminal, start the frontend from the source checkout:
-
-```bash
-cd frontend
-npm ci
-npm run dev
-```
-
-The development dashboard listens on `http://127.0.0.1:5173` and proxies API requests to the loopback API at `http://127.0.0.1:8000`. The backend health endpoint is `http://127.0.0.1:8000/api/v1/health`; it confirms API availability only, not Docker readiness or sandbox security.
-
-### Public website
-
-The static public website is deployed at **<https://emam26.github.io/ReproScout/>** through GitHub Actions. Its Vite build uses the `/ReproScout/` base path, and the Pages workflow validates the build before deploying `frontend/dist`.
-
-GitHub Pages hosts static frontend content only. It does not provide a hosted ReproScout API, command execution, audit workers, or Docker access. Running preflights or audits, executing commands, and using the Docker sandbox require a locally installed ReproScout application. The public website is therefore distinct from the interactive local dashboard described above.
 
 ## Evaluation and Testing
 
