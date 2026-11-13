@@ -23,6 +23,10 @@
   <a href="LICENSE"><img src="https://img.shields.io/badge/License-MIT-green.svg" alt="MIT License"></a>
 </p>
 
+<p align="center">
+  <strong><a href="https://emam26.github.io/ReproScout/">Live Website</a></strong>
+</p>
+
 
 ## Overview
 
@@ -39,7 +43,7 @@ By default, ReproScout focuses on environment readiness rather than executing ex
 | Isolated execution | Uses controlled Docker execution for permitted setup and lightweight verification work when Docker is available and suitable. |
 | Optional reasoning | Can use configured LLM providers to interpret setup instructions or diagnose errors; LLM output never establishes success. |
 | Research-agent handoff | Writes a concise report, machine-readable evidence, and an agent-ready summary with the pinned revision and unresolved issues. |
-| Local interfaces | Includes a Typer CLI, an optional loopback-only FastAPI service, and a local React dashboard. |
+| Interfaces | Includes a Python CLI, an optional loopback-only FastAPI backend, a local interactive React dashboard, and a publicly deployed static GitHub Pages website. |
 
 ## Installation
 
@@ -137,6 +141,8 @@ Use `reproscout --help` and the [CLI reference](docs/CLI.md) for the authoritati
 
 ## Local Dashboard and Public Website
 
+### Local dashboard
+
 The dashboard is a local development interface. Install the API extra before starting its backend:
 
 ```bash
@@ -154,7 +160,11 @@ npm run dev
 
 The development dashboard listens on `http://127.0.0.1:5173` and proxies API requests to the loopback API at `http://127.0.0.1:8000`. The backend health endpoint is `http://127.0.0.1:8000/api/v1/health`; it confirms API availability only, not Docker readiness or sandbox security.
 
-The separately built static GitHub Pages site uses the `/ReproScout/` base path and contains no backend job execution. The Pages workflow validates the public build and deploys `frontend/dist`; it is distinct from the local dashboard, and this README does not claim a public deployment is live.
+### Public website
+
+The static public website is deployed at **<https://emam26.github.io/ReproScout/>** through GitHub Actions. Its Vite build uses the `/ReproScout/` base path, and the Pages workflow validates the build before deploying `frontend/dist`.
+
+GitHub Pages hosts static frontend content only. It does not provide a hosted ReproScout API, command execution, audit workers, or Docker access. Running preflights or audits, executing commands, and using the Docker sandbox require a locally installed ReproScout application. The public website is therefore distinct from the interactive local dashboard described above.
 
 ## Evaluation and Testing
 
