@@ -1,9 +1,13 @@
 
+
 <p align="center">
-  <img src="frontend/public/reproscout-logo.png"
-       alt="ReproScout compass logo"
-       width="115">
+  <img
+    src="./frontend/public/reproscout-logo.png"
+    alt="ReproScout compass logo"
+    width="115"
+  />
 </p>
+
 
 <h1 align="center">ReproScout</h1>
 
