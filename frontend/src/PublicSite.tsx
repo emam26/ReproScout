@@ -1,32 +1,31 @@
 import { useEffect, useState } from "react";
-
 import { PublicFooter } from "./public/PublicFooter";
 import { PublicHeader } from "./public/PublicHeader";
 import {
   DocumentationSection,
-  EvidenceSection,
-  FeaturesSection,
   HeroSection,
   InstallationSection,
-  OpenSourceSection,
+  ReportsSection,
+  ScopeSection,
   WorkflowSection,
 } from "./public/PublicSections";
 import "./public/public.css";
 
 export default function PublicSite() {
-  const [activeSection, setActiveSection] = useState("overview");
+  const [activeSection, setActiveSection] = useState("top");
 
   useEffect(() => {
     if (!("IntersectionObserver" in window)) return undefined;
-    const sections = ["overview", "features", "installation", "documentation"]
+    const sections = ["top", "how", "install", "outputs", "scope", "docs"]
       .map((id) => document.getElementById(id))
       .filter((section): section is HTMLElement => section !== null);
     const observer = new IntersectionObserver(
       (entries) => {
-        const activeEntry = entries.find((entry) => entry.isIntersecting);
-        if (activeEntry?.target.id) setActiveSection(activeEntry.target.id);
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) setActiveSection(entry.target.id);
+        });
       },
-      { rootMargin: "-25% 0px -65%", threshold: 0.01 },
+      { rootMargin: "-30% 0px -60%" },
     );
     sections.forEach((section) => observer.observe(section));
     return () => observer.disconnect();
@@ -34,16 +33,15 @@ export default function PublicSite() {
 
   return (
     <div className="site-shell">
-      <a className="site-skip-link" href="#main-content">Skip to content</a>
+      <a className="skip" href="#main">Skip to content</a>
       <PublicHeader activeSection={activeSection} onNavigate={setActiveSection} />
-      <main id="main-content">
+      <main id="main">
         <HeroSection />
         <WorkflowSection />
-        <FeaturesSection />
         <InstallationSection />
-        <EvidenceSection />
+        <ReportsSection />
+        <ScopeSection />
         <DocumentationSection />
-        <OpenSourceSection />
       </main>
       <PublicFooter />
     </div>

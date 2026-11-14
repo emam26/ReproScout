@@ -1,13 +1,14 @@
 import { useEffect, useRef, useState } from "react";
-
 type CodeBlockProps = {
+  ariaLabelledBy?: string;
   command: string;
-  copyLabel: string;
-  eyebrow?: string;
-  title: string;
+  copyLabel?: string;
+  hidden?: boolean;
+  id?: string;
+  role?: "tabpanel";
 };
 
-export function CodeBlock({ command, copyLabel, eyebrow, title }: CodeBlockProps) {
+export function CodeBlock({ ariaLabelledBy, command, copyLabel = "Copy", hidden, id, role }: CodeBlockProps) {
   const [copied, setCopied] = useState(false);
   const resetTimer = useRef<number | undefined>(undefined);
 
@@ -23,18 +24,15 @@ export function CodeBlock({ command, copyLabel, eyebrow, title }: CodeBlockProps
   };
 
   return (
-    <section className="site-code-card">
-      <div className="site-code-card-heading">
-        <div>
-          {eyebrow && <p className="site-card-eyebrow">{eyebrow}</p>}
-          <h3>{title}</h3>
-        </div>
-        <button aria-label={copyLabel} className="site-copy-button" onClick={() => void copy()} type="button">
+    <div aria-labelledby={ariaLabelledBy} className="code" hidden={hidden} id={id} role={role}>
+      <div className="code-head">
+        <span>shell</span>
+        <button aria-label={copyLabel} className="copy" onClick={() => void copy()} type="button">
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
       <pre><code>{command}</code></pre>
-    </section>
+    </div>
   );
 }
 
@@ -52,8 +50,7 @@ async function copyText(value: string): Promise<boolean> {
   const textarea = document.createElement("textarea");
   textarea.value = value;
   textarea.setAttribute("readonly", "");
-  textarea.style.position = "fixed";
-  textarea.style.opacity = "0";
+  textarea.style.cssText = "position:fixed;opacity:0";
   document.body.appendChild(textarea);
   textarea.select();
   const copied = document.execCommand("copy");

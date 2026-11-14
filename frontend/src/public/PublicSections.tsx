@@ -1,176 +1,309 @@
+import { useRef, useState, type KeyboardEvent } from "react";
 import { CodeBlock } from "./CodeBlock";
 import {
-  artifacts,
-  dashboardStart,
+  cloneCommands,
   documentationLinks,
-  features,
-  quickStart,
+  installCommands,
+  preflightCommands,
+  prerequisiteCommands,
+  reportTabs,
   repositoryUrl,
-  sourceInstall,
   workflow,
 } from "./content";
 
+const ledgerRows = [
+  { status: "\u2713 Verified", tone: "ok", text: "Python 3.11 requirement detected and satisfied in sandbox" },
+  { status: "\u2713 Verified", tone: "ok", text: "Declared dependencies installed without error" },
+  { status: "\u2715 Missing", tone: "bad", text: "System tool required by setup docs is not present" },
+  { status: "\u25D0 Partial", tone: "warn", text: "Lightweight import check passed for 2 of 3 modules" },
+  { status: "? Unverified", tone: "unk", text: "GPU-dependent steps were not checked" },
+] as const;
+
 export function HeroSection() {
   return (
-    <section aria-labelledby="hero-title" className="site-hero" id="overview">
-      <div className="site-hero-copy">
-        <p className="site-kicker">Research environment preflight</p>
-        <h1 id="hero-title">From research code to verified environments.</h1>
-        <p className="site-lede">
-          Inspect research repositories, prepare isolated environments, and generate
-          evidence-backed reports before you invest in an experiment.
-        </p>
-        <div className="site-actions">
-          <a className="site-button site-button-primary" href="#installation">
-            Get started <span aria-hidden="true">{"\u2192"}</span>
-          </a>
-          <a className="site-button site-button-secondary" href={repositoryUrl} rel="noreferrer" target="_blank">
-            View on GitHub <span aria-hidden="true">{"\u2197"}</span>
-          </a>
+    <div className="hero" id="top">
+      <div className="wrap hero-grid">
+        <div>
+          <h1>Check the environment before you chase the result.</h1>
+          <p className="lede">ReproScout inspects a research repository, prepares its setup in a bounded Docker sandbox, and writes a report of what worked, what failed, and what is still unverified.</p>
+          <div className="cta">
+            <a className="btn btn-primary" href="#install">Install from source</a>
+            <a className="btn btn-quiet" href={repositoryUrl} rel="noreferrer" target="_blank">View on GitHub</a>
+          </div>
         </div>
-        <p className="site-boundary">
-          Environment readiness is not scientific reproducibility. ReproScout does
-          not automatically run target experiments, training, benchmarks, or tests.
-        </p>
+        <figure aria-label="Illustrative evidence ledger" className="ledger" style={{ margin: 0 }}>
+          <div className="ledger-bar"><b>environment-report.md</b><span>OWNER/REPOSITORY @ pinned revision</span></div>
+          <ol>
+            {ledgerRows.map((row) => (
+              <li key={row.text}>
+                <span className={`st ${row.tone}`}>{row.status}</span>
+                <span className="t">{row.text}</span>
+              </li>
+            ))}
+          </ol>
+          <div className="verdict">Assessment: <b>PARTIAL</b>. One prerequisite blocks full readiness.</div>
+          <span className="tag">Schematic example for illustration. Not output from a real run.</span>
+        </figure>
       </div>
-      <div aria-label="Representative ReproScout command flow" className="site-terminal">
-        <div className="site-terminal-chrome">
-          <span>local terminal</span>
-          <span aria-hidden="true">{"\u25cf \u25cf \u25cf"}</span>
-        </div>
-        <pre><code><span className="site-terminal-prompt">$</span> reproscout doctor{`\n`}<span className="site-terminal-note"># inspect local prerequisites without changing state</span>{`\n\n`}<span className="site-terminal-prompt">$</span> reproscout setup --dry-run{`\n`}<span className="site-terminal-note"># preview supported onboarding without installing anything</span>{`\n\n`}<span className="site-terminal-prompt">$</span> reproscout preflight https://github.com/OWNER/REPOSITORY</code></pre>
-        <p>Representative supported commands. This static site does not run them.</p>
-      </div>
-    </section>
+    </div>
   );
 }
 
 export function WorkflowSection() {
-  return (
-    <section aria-labelledby="workflow-title" className="site-section" id="how-it-works">
-      <SectionHeading
-        eyebrow="How it works"
-        id="workflow-title"
-        title="A deliberate path from repository URL to evidence."
-        description="Repository instructions are untrusted input. Deterministic checks and observed command outcomes determine the result."
-      />
-      <ol className="site-workflow">
-        {workflow.map((step) => (
-          <li key={step.number}>
-            <span>{step.number}</span>
-            <h3>{step.title}</h3>
-            <p>{step.text}</p>
-          </li>
-        ))}
-      </ol>
-    </section>
-  );
-}
+  const [selected, setSelected] = useState(0);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const active = workflow[selected];
 
-export function FeaturesSection() {
+  const selectStage = (index: number, focus = false) => {
+    setSelected(index);
+    if (focus) tabRefs.current[index]?.focus();
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    let nextIndex: number | undefined;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (selected + 1) % workflow.length;
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (selected - 1 + workflow.length) % workflow.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = workflow.length - 1;
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    selectStage(nextIndex, true);
+  };
+
   return (
-    <section aria-labelledby="features-title" className="site-section" id="features">
-      <SectionHeading
-        eyebrow="Capabilities"
-        id="features-title"
-        title="A sober control plane for research software."
-        description="The default workflow stays focused on environment readiness. Experiment-capable auditing remains an explicit, separately controlled path."
-      />
-      <div className="site-feature-layout">
-        {features.map((feature) => (
-          <article className={`site-feature-card site-feature-${feature.kind}`} key={feature.number}>
-            <div className="site-feature-topline">
-              <span>{feature.number}</span>
-              <span aria-hidden="true" className="site-feature-glyph">{"\u2197"}</span>
-            </div>
-            <h3>{feature.title}</h3>
-            <p>{feature.text}</p>
-          </article>
+    <section aria-labelledby="how-h" className="s" id="how">
+      <div className="wrap">
+        <div className="head">
+          <h2 id="how-h">Three stages, one evidence trail.</h2>
+          <p className="sec-intro">Every assessment starts by recording the repository and the exact revision it used.</p>
+        </div>
+        <div aria-label="Workflow stages" className="track" role="tablist">
+          {workflow.map((stage, index) => (
+            <button
+              aria-controls={`p-${stage.id}`}
+              aria-selected={selected === index}
+              className="node"
+              id={`t-${stage.id}`}
+              key={stage.id}
+              onClick={() => selectStage(index)}
+              onKeyDown={handleKeyDown}
+              ref={(element) => { tabRefs.current[index] = element; }}
+              role="tab"
+              tabIndex={selected === index ? 0 : -1}
+              type="button"
+            >
+              <span className="dot">{stage.number}</span>
+              <span className="nm">{stage.title}</span>
+            </button>
+          ))}
+        </div>
+        {workflow.map((stage, index) => (
+          <div aria-labelledby={`t-${stage.id}`} className="panel" hidden={selected !== index} id={`p-${stage.id}`} key={stage.id} role="tabpanel">
+            <p className="lead">{stage.lead}</p>
+            <ul>{stage.items.map((item) => <li key={item}>{item}</li>)}</ul>
+          </div>
         ))}
+        <p className="note">The control flow and verifier decide status. LLM output never establishes success.</p>
       </div>
     </section>
   );
 }
 
 export function InstallationSection() {
+  const [method, setMethod] = useState<"uv" | "pip">("uv");
+  const methodTabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const methodTabs = [
+    { id: "uv", label: "uv", command: installCommands.uv },
+    { id: "venv", label: "venv + pip", command: installCommands.pip },
+  ] as const;
+
+  const selectMethod = (nextMethod: "uv" | "pip", focus = false) => {
+    setMethod(nextMethod);
+    if (focus) methodTabRefs.current[nextMethod === "uv" ? 0 : 1]?.focus();
+  };
+
+  const handleMethodKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    const currentIndex = method === "uv" ? 0 : 1;
+    let nextIndex: number | undefined;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (currentIndex + 1) % methodTabs.length;
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (currentIndex - 1 + methodTabs.length) % methodTabs.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = methodTabs.length - 1;
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    selectMethod(nextIndex === 0 ? "uv" : "pip", true);
+  };
+
   return (
-    <section aria-labelledby="installation-title" className="site-section" id="installation">
-      <SectionHeading
-        eyebrow="Installation and quick start"
-        id="installation-title"
-        title="Start local. Keep execution under your control."
-        description="ReproScout is not published to PyPI yet. Install the CLI from a source checkout; Docker remains a separate prerequisite for sandboxed preflight."
-      />
-      <div className="site-install-grid">
-        <CodeBlock command={sourceInstall} copyLabel="Copy source installation commands" eyebrow="Step 1" title="Install the Python CLI" />
-        <article className="site-install-card">
-          <p className="site-card-eyebrow">Step 2</p>
-          <h3>Check the host before changing it.</h3>
-          <p><code>reproscout doctor</code> is read-only. It reports local prerequisites without installing software or running a container.</p>
-          <div className="site-install-detail"><strong>Python 3.11+</strong><span>Required for the CLI and current supported source installation.</span></div>
-        </article>
-        <article className="site-install-card">
-          <p className="site-card-eyebrow">Step 3</p>
-          <h3>Use guided setup only with consent.</h3>
-          <p><code>reproscout setup --dry-run</code> previews onboarding. <code>reproscout setup</code> requests consent before any permitted action.</p>
-          <div className="site-install-detail"><strong>Docker is separate</strong><span>Installing ReproScout does not install Docker; sandboxed execution needs a suitable local Docker runtime.</span></div>
-        </article>
-      </div>
-      <div className="site-quick-start" id="quick-start">
-        <div>
-          <p className="site-kicker">Step 4</p>
-          <h3>Run an environment preflight.</h3>
-          <p>The default path observes permitted setup facts in Docker and writes the evidence artifacts. It does not claim a research result has been reproduced.</p>
+    <section aria-labelledby="in-h" className="s" id="install">
+      <div className="wrap">
+        <div className="head">
+          <h2 id="in-h">Install from a source checkout.</h2>
+          <p className="sec-intro">ReproScout is not presented as a PyPI package. Python 3.11 or later is required.</p>
         </div>
-        <CodeBlock command={quickStart} copyLabel="Copy quick-start commands" title="Local onboarding path" />
-      </div>
-      <aside className="site-dashboard-note">
-        <div>
-          <p className="site-card-eyebrow">Optional local dashboard</p>
-          <h3>Keep the API and dashboard on loopback.</h3>
-          <p>Install the <code>[api]</code> extra for the local FastAPI control service and React dashboard. Vite serves the dashboard at <code>127.0.0.1:5173</code> and proxies to the local API at <code>127.0.0.1:8000</code>.</p>
+        <div className="install-grid">
+          <ol className="steps">
+            <li>
+              <div>
+                <h3>Clone the repository</h3>
+                <CodeBlock command={cloneCommands} copyLabel="Copy clone commands" />
+              </div>
+            </li>
+            <li>
+              <div>
+                <h3>Install the CLI</h3>
+                <p>Choose uv or a standard virtual environment.</p>
+                <div aria-label="Install method" className="tabs-mini" role="tablist">
+                  {methodTabs.map((tab, index) => (
+                    <button
+                      aria-controls={`p-${tab.id}`}
+                      aria-selected={method === (tab.id === "uv" ? "uv" : "pip")}
+                      id={`t-${tab.id}`}
+                      key={tab.id}
+                      onClick={() => selectMethod(tab.id === "uv" ? "uv" : "pip")}
+                      onKeyDown={handleMethodKeyDown}
+                      ref={(element) => { methodTabRefs.current[index] = element; }}
+                      role="tab"
+                      tabIndex={method === (tab.id === "uv" ? "uv" : "pip") ? 0 : -1}
+                      type="button"
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+                {methodTabs.map((tab) => (
+                  <CodeBlock
+                    ariaLabelledBy={`t-${tab.id}`}
+                    command={tab.command}
+                    copyLabel={`Copy ${tab.label} installation commands`}
+                    hidden={method !== (tab.id === "uv" ? "uv" : "pip")}
+                    id={`p-${tab.id}`}
+                    key={tab.id}
+                    role="tabpanel"
+                  />
+                ))}
+              </div>
+            </li>
+            <li>
+              <div>
+                <h3>Check your prerequisites</h3>
+                <p><code>doctor</code> is read-only and <code>--dry-run</code> changes nothing. <code>setup</code> asks for consent before any install action.</p>
+                <CodeBlock command={prerequisiteCommands} copyLabel="Copy prerequisite commands" />
+              </div>
+            </li>
+            <li>
+              <div>
+                <h3>Run a preflight</h3>
+                <p>Replace the placeholder with a public repository.</p>
+                <CodeBlock command={preflightCommands} copyLabel="Copy preflight command" />
+              </div>
+            </li>
+          </ol>
+          <aside aria-label="Before you install" className="aside">
+            <h3>Good to know</h3>
+            <ul>
+              <li>Docker is a separate prerequisite for sandboxed work. Installing the CLI does not install or validate it.</li>
+              <li>A running, healthy Docker runtime is reused, not reinstalled.</li>
+              <li>Native Windows and macOS install paths still need direct platform verification.</li>
+            </ul>
+          </aside>
         </div>
-        <div className="site-dashboard-command"><code>{dashboardStart}</code></div>
-        <p className="site-dashboard-health"><code>GET /api/v1/health</code> confirms only the local API process; it does not prove Docker or sandbox readiness.</p>
-        <a href={`${repositoryUrl}/blob/main/docs/DASHBOARD.md`} rel="noreferrer" target="_blank">Read dashboard setup <span aria-hidden="true">{"\u2197"}</span></a>
-      </aside>
+      </div>
     </section>
   );
 }
 
-export function EvidenceSection() {
+export function ReportsSection() {
+  const [selected, setSelected] = useState(0);
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const selectReport = (index: number, focus = false) => {
+    setSelected(index);
+    if (focus) tabRefs.current[index]?.focus();
+  };
+
+  const handleKeyDown = (event: KeyboardEvent<HTMLButtonElement>) => {
+    let nextIndex: number | undefined;
+    if (event.key === "ArrowRight" || event.key === "ArrowDown") nextIndex = (selected + 1) % reportTabs.length;
+    if (event.key === "ArrowLeft" || event.key === "ArrowUp") nextIndex = (selected - 1 + reportTabs.length) % reportTabs.length;
+    if (event.key === "Home") nextIndex = 0;
+    if (event.key === "End") nextIndex = reportTabs.length - 1;
+    if (nextIndex === undefined) return;
+    event.preventDefault();
+    selectReport(nextIndex, true);
+  };
+
   return (
-    <section aria-labelledby="evidence-title" className="site-section" id="evidence">
-      <SectionHeading
-        eyebrow="Evidence and reports"
-        id="evidence-title"
-        title="A handoff that states what it knows — and what it does not."
-        description="Every preflight writes three portable artifacts for a researcher or coding agent. The example at right is illustrative, not an audited repository."
-      />
-      <div className="site-evidence-layout">
-        <article className="site-report-preview" aria-label="Illustrative environment report preview">
-          <div className="site-report-preview-chrome">
-            <span>environment-report.md</span>
-            <span>illustrative</span>
+    <section aria-labelledby="out-h" className="s" id="outputs">
+      <div className="wrap">
+        <div className="head">
+          <h2 id="out-h">Three files you can hand to a person or an agent.</h2>
+          <p className="sec-intro">A completed preflight writes these to its run output. The directory is configurable.</p>
+        </div>
+        <div className="out-grid">
+          <div aria-label="Report files" aria-orientation="vertical" className="filelist" role="tablist">
+            {reportTabs.map((report, index) => (
+              <button
+                aria-controls={`p-${report.id}`}
+                aria-selected={selected === index}
+                className="file"
+                id={`t-${report.id}`}
+                key={report.id}
+                onClick={() => selectReport(index)}
+                onKeyDown={handleKeyDown}
+                ref={(element) => { tabRefs.current[index] = element; }}
+                role="tab"
+                tabIndex={selected === index ? 0 : -1}
+                type="button"
+              >
+                <code>{report.name}</code><span>{report.audience}</span>
+              </button>
+            ))}
           </div>
-          <div className="site-report-preview-body">
-            <p className="site-preview-status">Environment facts</p>
+          <div className="preview">
+            {reportTabs.map((report, index) => (
+              <div aria-labelledby={`t-${report.id}`} className="panel" hidden={selected !== index} id={`p-${report.id}`} key={report.id} role="tabpanel">
+                <div className="body">
+                  <dl>
+                    <dt>What it is</dt><dd>{report.whatItIs}</dd>
+                    <dt>{index === 0 ? "What it separates" : "What it holds"}</dt><dd>{report.whatItSeparates}</dd>
+                  </dl>
+                </div>
+              </div>
+            ))}
+            <span className="tag" style={{ borderTop: "1px solid var(--rule)" }}>Descriptions follow the project README. Consult a real run for exact contents.</span>
+          </div>
+        </div>
+      </div>
+    </section>
+  );
+}
+
+export function ScopeSection() {
+  return (
+    <section aria-labelledby="sc-h" className="s" id="scope">
+      <div className="wrap">
+        <div className="head">
+          <h2 id="sc-h">What it does, and what it does not claim.</h2>
+        </div>
+        <div className="scope">
+          <div className="yes">
+            <h3>Available in the repository</h3>
             <dl>
-              <div><dt>Repository revision</dt><dd>Pinned in the report</dd></div>
-              <div><dt>Permitted checks</dt><dd>Recorded with exit outcomes</dd></div>
-              <div><dt>Unresolved setup</dt><dd>Preserved for follow-up</dd></div>
+              <div className="row"><dt>Environment preflight</dt><dd>Detects requirements, dependencies, system tools, and missing prerequisites.</dd></div>
+              <div className="row"><dt>Isolated execution</dt><dd>Controlled Docker runs for permitted setup and lightweight checks.</dd></div>
+              <div className="row"><dt>Optional reasoning</dt><dd>Configured LLM providers can interpret instructions and errors.</dd></div>
+              <div className="row"><dt>Interfaces</dt><dd>Python CLI and documented control surfaces.</dd></div>
             </dl>
-            <p className="site-preview-boundary">Not verified: model training, benchmarks, experiments, or scientific claims.</p>
           </div>
-        </article>
-        <div className="site-artifact-list">
-          {artifacts.map((artifact) => (
-            <article className="site-artifact-card" key={artifact.name}>
-              <span>{artifact.label}</span>
-              <h3>{artifact.name}</h3>
-              <p>{artifact.text}</p>
-            </article>
-          ))}
+          <div className="no">
+            <h3>Not claimed</h3>
+            <dl>
+              <div className="row"><dt>Reproduced research results</dt><dd>Preflight checks environment readiness, not experiments or paper claims.</dd></div>
+              <div className="row"><dt>A PyPI release</dt><dd>Install from source for now.</dd></div>
+              <div className="row"><dt>Perfect isolation</dt><dd>The sandbox is defense in depth, and configuration alone is not proof it works.</dd></div>
+            </dl>
+          </div>
         </div>
       </div>
     </section>
@@ -179,60 +312,20 @@ export function EvidenceSection() {
 
 export function DocumentationSection() {
   return (
-    <section aria-labelledby="documentation-title" className="site-section" id="documentation">
-      <SectionHeading
-        eyebrow="Documentation"
-        id="documentation-title"
-        title="Read the contracts. Keep control local."
-        description="The GitHub Pages site is static frontend content deployed through GitHub Actions. It has no hosted API, Docker daemon, or public audit execution."
-      />
-      <div className="site-doc-grid">
-        {documentationLinks.map((link) => (
-          <a className="site-doc-link" href={link.href} key={link.label} rel="noreferrer" target="_blank">
-            <span>{link.label}</span>
-            <p>{link.text}</p>
-            <strong>Read on GitHub <b aria-hidden="true">{"\u2197"}</b></strong>
-          </a>
-        ))}
-      </div>
-      <div className="site-trust-grid">
-        <div><strong>Untrusted by default</strong><span>Repository files and setup instructions never authorize arbitrary host execution.</span></div>
-        <div><strong>Evidence over configuration</strong><span>Installed packages and configured restrictions alone do not prove readiness.</span></div>
-        <div><strong>Static by design</strong><span>Run audits and Docker commands only from a locally installed ReproScout application.</span></div>
+    <section aria-labelledby="dc-h" className="s" id="docs">
+      <div className="wrap">
+        <div className="head">
+          <h2 id="dc-h">Read the docs, then read the source.</h2>
+          <p className="sec-intro">Contributions are welcome within the documented scope and safety model.</p>
+        </div>
+        <ul className="docs">
+          {documentationLinks.map((link) => (
+            <li key={link.label}>
+              <a href={link.href} rel="noreferrer" target="_blank">{link.label}<span>{link.detail}</span></a>
+            </li>
+          ))}
+        </ul>
       </div>
     </section>
-  );
-}
-
-export function OpenSourceSection() {
-  return (
-    <section aria-labelledby="open-source-title" className="site-open-source">
-      <div>
-        <p className="site-kicker">Open source</p>
-        <h2 id="open-source-title">Help make environment verification more trustworthy.</h2>
-        <p>Contributions are welcome within ReproScout’s documented scope and safety model.</p>
-      </div>
-      <div className="site-open-source-actions">
-        <a className="site-button site-button-primary" href={`${repositoryUrl}/blob/main/CONTRIBUTING.md`} rel="noreferrer" target="_blank">Contribution guide <span aria-hidden="true">{"\u2197"}</span></a>
-        <a className="site-button site-button-secondary" href={`${repositoryUrl}/issues`} rel="noreferrer" target="_blank">Open an issue <span aria-hidden="true">{"\u2197"}</span></a>
-      </div>
-    </section>
-  );
-}
-
-type SectionHeadingProps = {
-  description: string;
-  eyebrow: string;
-  id: string;
-  title: string;
-};
-
-function SectionHeading({ description, eyebrow, id, title }: SectionHeadingProps) {
-  return (
-    <div className="site-section-heading">
-      <p className="site-kicker">{eyebrow}</p>
-      <h2 id={id}>{title}</h2>
-      <p>{description}</p>
-    </div>
   );
 }
