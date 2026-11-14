@@ -1,4 +1,12 @@
-import { features, repositoryUrl, workflow } from "./content";
+import { CodeBlock } from "./CodeBlock";
+import {
+  dashboardStart,
+  features,
+  quickStart,
+  repositoryUrl,
+  sourceInstall,
+  workflow,
+} from "./content";
 
 export function HeroSection() {
   return (
@@ -78,6 +86,52 @@ export function FeaturesSection() {
           </article>
         ))}
       </div>
+    </section>
+  );
+}
+
+export function InstallationSection() {
+  return (
+    <section aria-labelledby="installation-title" className="site-section" id="installation">
+      <SectionHeading
+        eyebrow="Installation and quick start"
+        id="installation-title"
+        title="Start local. Keep execution under your control."
+        description="ReproScout is not published to PyPI yet. Install the CLI from a source checkout; Docker remains a separate prerequisite for sandboxed preflight."
+      />
+      <div className="site-install-grid">
+        <CodeBlock command={sourceInstall} copyLabel="Copy source installation commands" eyebrow="Step 1" title="Install the Python CLI" />
+        <article className="site-install-card">
+          <p className="site-card-eyebrow">Step 2</p>
+          <h3>Check the host before changing it.</h3>
+          <p><code>reproscout doctor</code> is read-only. It reports local prerequisites without installing software or running a container.</p>
+          <div className="site-install-detail"><strong>Python 3.11+</strong><span>Required for the CLI and current supported source installation.</span></div>
+        </article>
+        <article className="site-install-card">
+          <p className="site-card-eyebrow">Step 3</p>
+          <h3>Use guided setup only with consent.</h3>
+          <p><code>reproscout setup --dry-run</code> previews onboarding. <code>reproscout setup</code> requests consent before any permitted action.</p>
+          <div className="site-install-detail"><strong>Docker is separate</strong><span>Installing ReproScout does not install Docker; sandboxed execution needs a suitable local Docker runtime.</span></div>
+        </article>
+      </div>
+      <div className="site-quick-start" id="quick-start">
+        <div>
+          <p className="site-kicker">Step 4</p>
+          <h3>Run an environment preflight.</h3>
+          <p>The default path observes permitted setup facts in Docker and writes the evidence artifacts. It does not claim a research result has been reproduced.</p>
+        </div>
+        <CodeBlock command={quickStart} copyLabel="Copy quick-start commands" title="Local onboarding path" />
+      </div>
+      <aside className="site-dashboard-note">
+        <div>
+          <p className="site-card-eyebrow">Optional local dashboard</p>
+          <h3>Keep the API and dashboard on loopback.</h3>
+          <p>Install the <code>[api]</code> extra for the local FastAPI control service and React dashboard. Vite serves the dashboard at <code>127.0.0.1:5173</code> and proxies to the local API at <code>127.0.0.1:8000</code>.</p>
+        </div>
+        <div className="site-dashboard-command"><code>{dashboardStart}</code></div>
+        <p className="site-dashboard-health"><code>GET /api/v1/health</code> confirms only the local API process; it does not prove Docker or sandbox readiness.</p>
+        <a href={`${repositoryUrl}/blob/main/docs/DASHBOARD.md`} rel="noreferrer" target="_blank">Read dashboard setup <span aria-hidden="true">{"\u2197"}</span></a>
+      </aside>
     </section>
   );
 }
