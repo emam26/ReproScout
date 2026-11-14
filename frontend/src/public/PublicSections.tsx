@@ -1,5 +1,6 @@
 import { CodeBlock } from "./CodeBlock";
 import {
+  artifacts,
   dashboardStart,
   features,
   quickStart,
@@ -132,6 +133,45 @@ export function InstallationSection() {
         <p className="site-dashboard-health"><code>GET /api/v1/health</code> confirms only the local API process; it does not prove Docker or sandbox readiness.</p>
         <a href={`${repositoryUrl}/blob/main/docs/DASHBOARD.md`} rel="noreferrer" target="_blank">Read dashboard setup <span aria-hidden="true">{"\u2197"}</span></a>
       </aside>
+    </section>
+  );
+}
+
+export function EvidenceSection() {
+  return (
+    <section aria-labelledby="evidence-title" className="site-section" id="evidence">
+      <SectionHeading
+        eyebrow="Evidence and reports"
+        id="evidence-title"
+        title="A handoff that states what it knows — and what it does not."
+        description="Every preflight writes three portable artifacts for a researcher or coding agent. The example at right is illustrative, not an audited repository."
+      />
+      <div className="site-evidence-layout">
+        <article className="site-report-preview" aria-label="Illustrative environment report preview">
+          <div className="site-report-preview-chrome">
+            <span>environment-report.md</span>
+            <span>illustrative</span>
+          </div>
+          <div className="site-report-preview-body">
+            <p className="site-preview-status">Environment facts</p>
+            <dl>
+              <div><dt>Repository revision</dt><dd>Pinned in the report</dd></div>
+              <div><dt>Permitted checks</dt><dd>Recorded with exit outcomes</dd></div>
+              <div><dt>Unresolved setup</dt><dd>Preserved for follow-up</dd></div>
+            </dl>
+            <p className="site-preview-boundary">Not verified: model training, benchmarks, experiments, or scientific claims.</p>
+          </div>
+        </article>
+        <div className="site-artifact-list">
+          {artifacts.map((artifact) => (
+            <article className="site-artifact-card" key={artifact.name}>
+              <span>{artifact.label}</span>
+              <h3>{artifact.name}</h3>
+              <p>{artifact.text}</p>
+            </article>
+          ))}
+        </div>
+      </div>
     </section>
   );
 }
