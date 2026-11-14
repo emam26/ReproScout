@@ -1,4 +1,4 @@
-import { repositoryUrl, workflow } from "./content";
+import { features, repositoryUrl, workflow } from "./content";
 
 export function HeroSection() {
   return (
@@ -53,6 +53,31 @@ export function WorkflowSection() {
           </li>
         ))}
       </ol>
+    </section>
+  );
+}
+
+export function FeaturesSection() {
+  return (
+    <section aria-labelledby="features-title" className="site-section" id="features">
+      <SectionHeading
+        eyebrow="Capabilities"
+        id="features-title"
+        title="A sober control plane for research software."
+        description="The default workflow stays focused on environment readiness. Experiment-capable auditing remains an explicit, separately controlled path."
+      />
+      <div className="site-feature-layout">
+        {features.map((feature) => (
+          <article className={`site-feature-card site-feature-${feature.kind}`} key={feature.number}>
+            <div className="site-feature-topline">
+              <span>{feature.number}</span>
+              <span aria-hidden="true" className="site-feature-glyph">{"\u2197"}</span>
+            </div>
+            <h3>{feature.title}</h3>
+            <p>{feature.text}</p>
+          </article>
+        ))}
+      </div>
     </section>
   );
 }
