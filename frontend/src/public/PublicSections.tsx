@@ -2,6 +2,7 @@ import { CodeBlock } from "./CodeBlock";
 import {
   artifacts,
   dashboardStart,
+  documentationLinks,
   features,
   quickStart,
   repositoryUrl,
@@ -171,6 +172,49 @@ export function EvidenceSection() {
             </article>
           ))}
         </div>
+      </div>
+    </section>
+  );
+}
+
+export function DocumentationSection() {
+  return (
+    <section aria-labelledby="documentation-title" className="site-section" id="documentation">
+      <SectionHeading
+        eyebrow="Documentation"
+        id="documentation-title"
+        title="Read the contracts. Keep control local."
+        description="The GitHub Pages site is static frontend content deployed through GitHub Actions. It has no hosted API, Docker daemon, or public audit execution."
+      />
+      <div className="site-doc-grid">
+        {documentationLinks.map((link) => (
+          <a className="site-doc-link" href={link.href} key={link.label} rel="noreferrer" target="_blank">
+            <span>{link.label}</span>
+            <p>{link.text}</p>
+            <strong>Read on GitHub <b aria-hidden="true">{"\u2197"}</b></strong>
+          </a>
+        ))}
+      </div>
+      <div className="site-trust-grid">
+        <div><strong>Untrusted by default</strong><span>Repository files and setup instructions never authorize arbitrary host execution.</span></div>
+        <div><strong>Evidence over configuration</strong><span>Installed packages and configured restrictions alone do not prove readiness.</span></div>
+        <div><strong>Static by design</strong><span>Run audits and Docker commands only from a locally installed ReproScout application.</span></div>
+      </div>
+    </section>
+  );
+}
+
+export function OpenSourceSection() {
+  return (
+    <section aria-labelledby="open-source-title" className="site-open-source">
+      <div>
+        <p className="site-kicker">Open source</p>
+        <h2 id="open-source-title">Help make environment verification more trustworthy.</h2>
+        <p>Contributions are welcome within ReproScout’s documented scope and safety model.</p>
+      </div>
+      <div className="site-open-source-actions">
+        <a className="site-button site-button-primary" href={`${repositoryUrl}/blob/main/CONTRIBUTING.md`} rel="noreferrer" target="_blank">Contribution guide <span aria-hidden="true">{"\u2197"}</span></a>
+        <a className="site-button site-button-secondary" href={`${repositoryUrl}/issues`} rel="noreferrer" target="_blank">Open an issue <span aria-hidden="true">{"\u2197"}</span></a>
       </div>
     </section>
   );
