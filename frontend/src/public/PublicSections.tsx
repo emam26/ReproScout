@@ -1,4 +1,4 @@
-import { repositoryUrl } from "./content";
+import { repositoryUrl, workflow } from "./content";
 
 export function HeroSection() {
   return (
@@ -32,5 +32,44 @@ export function HeroSection() {
         <p>Representative supported commands. This static site does not run them.</p>
       </div>
     </section>
+  );
+}
+
+export function WorkflowSection() {
+  return (
+    <section aria-labelledby="workflow-title" className="site-section" id="how-it-works">
+      <SectionHeading
+        eyebrow="How it works"
+        id="workflow-title"
+        title="A deliberate path from repository URL to evidence."
+        description="Repository instructions are untrusted input. Deterministic checks and observed command outcomes determine the result."
+      />
+      <ol className="site-workflow">
+        {workflow.map((step) => (
+          <li key={step.number}>
+            <span>{step.number}</span>
+            <h3>{step.title}</h3>
+            <p>{step.text}</p>
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+type SectionHeadingProps = {
+  description: string;
+  eyebrow: string;
+  id: string;
+  title: string;
+};
+
+function SectionHeading({ description, eyebrow, id, title }: SectionHeadingProps) {
+  return (
+    <div className="site-section-heading">
+      <p className="site-kicker">{eyebrow}</p>
+      <h2 id={id}>{title}</h2>
+      <p>{description}</p>
+    </div>
   );
 }
