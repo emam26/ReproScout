@@ -1,7 +1,7 @@
 import react from "@vitejs/plugin-react";
 import { defineConfig } from "vitest/config";
 
-import { LOCAL_API_TARGET } from "./src/apiConfig";
+import { LOCAL_API_TARGET } from "./src/apiConfig.js";
 
 export default defineConfig(({ mode }) => ({
   plugins: [react()],
