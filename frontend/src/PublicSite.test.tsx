@@ -61,6 +61,19 @@ describe("public site", () => {
     expect(document.activeElement).toBe(menu);
   });
 
+  it("closes mobile navigation when focus moves outside the header", () => {
+    render(<PublicSite />);
+
+    const menu = screen.getByRole("button", { name: "Open menu" });
+    fireEvent.click(menu);
+    expect(menu).toHaveAttribute("aria-expanded", "true");
+
+    fireEvent.pointerDown(document.body);
+
+    expect(menu).toHaveAttribute("aria-expanded", "false");
+    expect(screen.getByRole("button", { name: "Open menu" })).toBeInTheDocument();
+  });
+
   it("supports keyboard navigation for the workflow stages", () => {
     render(<PublicSite />);
 
@@ -72,6 +85,24 @@ describe("public site", () => {
     expect(prepare).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("tabpanel", { name: /Prepare/ })).toHaveTextContent(/build a bounded plan/i);
     expect(document.activeElement).toBe(prepare);
+  });
+
+  it("keeps workflow tab selection and panel visibility synchronized", () => {
+    render(<PublicSite />);
+
+    const inspect = screen.getByRole("tab", { name: /Inspect/ });
+    const verify = screen.getByRole("tab", { name: /Verify/ });
+    expect(document.getElementById("p-inspect")).not.toHaveAttribute("hidden");
+    expect(document.getElementById("p-prepare")).toHaveAttribute("hidden");
+    expect(document.getElementById("p-verify")).toHaveAttribute("hidden");
+
+    fireEvent.keyDown(inspect, { key: "End" });
+
+    expect(verify).toHaveAttribute("aria-selected", "true");
+    expect(document.getElementById("p-inspect")).toHaveAttribute("hidden");
+    expect(document.getElementById("p-prepare")).toHaveAttribute("hidden");
+    expect(document.getElementById("p-verify")).not.toHaveAttribute("hidden");
+    expect(document.activeElement).toBe(verify);
   });
 
   it("keeps all four installation steps visible and the default uv panel non-empty", () => {
@@ -123,6 +154,20 @@ describe("public site", () => {
 
     expect(screen.getByRole("tabpanel", { name: /environment-evidence\.json/i })).toHaveTextContent(/structured evidence/i);
     expect(screen.getByRole("tab", { name: /environment-evidence\.json/i })).toHaveAttribute("aria-selected", "true");
+  });
+
+  it("keeps report tab panels mutually exclusive", () => {
+    render(<PublicSite />);
+
+    expect(document.getElementById("p-report")).not.toHaveAttribute("hidden");
+    expect(document.getElementById("p-evidence")).toHaveAttribute("hidden");
+    expect(document.getElementById("p-handoff")).toHaveAttribute("hidden");
+
+    fireEvent.click(screen.getByRole("tab", { name: /agent-handoff\.md/i }));
+
+    expect(document.getElementById("p-report")).toHaveAttribute("hidden");
+    expect(document.getElementById("p-evidence")).toHaveAttribute("hidden");
+    expect(document.getElementById("p-handoff")).not.toHaveAttribute("hidden");
   });
 
   it("keeps the page content visible when IntersectionObserver is unavailable", () => {
