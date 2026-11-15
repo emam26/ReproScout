@@ -27,6 +27,7 @@ jobs:
       - run: npm run lint
       - run: npm test
       - run: npm run build:public
+      - run: npm run verify:public
       - uses: actions/upload-pages-artifact@v3
         with:
           path: frontend/dist
