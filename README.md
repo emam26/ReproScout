@@ -144,6 +144,19 @@ Use `reproscout --help` and the [CLI reference](docs/CLI.md) for the authoritati
 
 ReproScout has unit, offline workflow, Docker integration, and frontend test coverage. Docker integration testing requires a compatible local Docker daemon and is intentionally separate from the offline suite.
 
+For frontend changes, run the checks from `frontend/`:
+
+```bash
+npm ci
+npm test -- --run
+npm run lint
+npm run build
+npm run build:public
+npm run verify:public
+```
+
+The Pages workflow validates the public build and deploys only `frontend/dist` as static content. It does not host the FastAPI service, run Docker, or execute audits; those capabilities remain available only from a local ReproScout installation.
+
 Historical project notes record a prior baseline of 296 offline Python tests, 14 Docker tests, and 15 React tests. Those are historical observations, not a claim about the current checkout. The controlled real-world evaluation set, S01-S20, remains marked `NOT_RUN`; public-repository evaluation is incomplete. Native Windows and macOS installation paths also require direct platform verification.
 
 See the [evaluation set](docs/EVALUATION_SET.md) and [roadmap](docs/ROADMAP.md) for the documented scope and outstanding validation work.
