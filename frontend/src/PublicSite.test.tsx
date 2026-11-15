@@ -147,6 +147,24 @@ describe("public site", () => {
     });
   });
 
+  it("reports when copying an installation command is unavailable", async () => {
+    Object.defineProperty(navigator, "clipboard", {
+      configurable: true,
+      value: { writeText: vi.fn().mockRejectedValue(new Error("clipboard denied")) },
+    });
+    Object.defineProperty(document, "execCommand", {
+      configurable: true,
+      value: vi.fn(() => false),
+    });
+    render(<PublicSite />);
+
+    const install = screen.getByRole("region", { name: "Install from a source checkout." });
+    const copyButton = within(install).getByRole("button", { name: "Copy uv installation commands" });
+    fireEvent.click(copyButton);
+
+    await waitFor(() => expect(copyButton).toHaveTextContent("Copy failed"));
+  });
+
   it("switches report tabs without leaving the page", () => {
     render(<PublicSite />);
 

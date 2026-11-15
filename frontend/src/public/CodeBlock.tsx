@@ -9,7 +9,7 @@ type CodeBlockProps = {
 };
 
 export function CodeBlock({ ariaLabelledBy, command, copyLabel = "Copy", hidden, id, role }: CodeBlockProps) {
-  const [copied, setCopied] = useState(false);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
   const resetTimer = useRef<number | undefined>(undefined);
 
   useEffect(() => () => {
@@ -17,18 +17,18 @@ export function CodeBlock({ ariaLabelledBy, command, copyLabel = "Copy", hidden,
   }, []);
 
   const copy = async () => {
-    if (!(await copyText(command))) return;
-    setCopied(true);
+    const copied = await copyText(command);
     if (resetTimer.current !== undefined) window.clearTimeout(resetTimer.current);
-    resetTimer.current = window.setTimeout(() => setCopied(false), 1_800);
+    setCopyState(copied ? "copied" : "failed");
+    resetTimer.current = window.setTimeout(() => setCopyState("idle"), 1_800);
   };
 
   return (
     <div aria-labelledby={ariaLabelledBy} className="code" hidden={hidden} id={id} role={role}>
       <div className="code-head">
         <span>shell</span>
-        <button aria-label={copyLabel} className="copy" onClick={() => void copy()} type="button">
-          {copied ? "Copied" : "Copy"}
+        <button aria-label={copyLabel} aria-live="polite" className="copy" onClick={() => void copy()} type="button">
+          {copyState === "copied" ? "Copied" : copyState === "failed" ? "Copy failed" : "Copy"}
         </button>
       </div>
       <pre><code>{command}</code></pre>
