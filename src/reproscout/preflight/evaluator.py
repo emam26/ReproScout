@@ -378,6 +378,13 @@ def evaluate_preflight(
             "The isolated installation passed, but part of the declared "
             "dependency metadata remains unverified."
         )
+    elif not inspection.discovery_complete:
+        status = PreflightStatus.PARTIAL
+        unresolved.extend(inspection.discovery_warnings)
+        summary = (
+            "The isolated installation passed, but bounded repository discovery "
+            "did not inspect every setup source."
+        )
     elif inspection.optional_package_requirements:
         status = PreflightStatus.PARTIAL
         unresolved.append(

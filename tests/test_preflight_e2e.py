@@ -9,7 +9,7 @@ import pytest
 
 from reproscout.application import AuditService, PreflightRequest, ServiceError
 from reproscout.execution import PlanExecutionEngine
-from reproscout.preflight import PreflightStatus
+from reproscout.preflight import PreflightProfile, PreflightStatus
 from reproscout.repo.clone import CloneError, CloneResult
 from reproscout.sandbox import (
     DockerSandbox,
@@ -128,9 +128,11 @@ def _service(
     fail_check: bool = False,
     fail_create: bool = False,
     commands: list[str] | None = None,
+    configs: list[SandboxConfig] | None = None,
 ) -> AuditService:
     source = _FIXTURES / fixture_name
     recorded = commands if commands is not None else []
+    recorded_configs = configs if configs is not None else []
 
     def clone(url: str, destination: Path) -> CloneResult:
         shutil.copytree(source, destination)
@@ -143,6 +145,7 @@ def _service(
 
     def execution_factory(store):
         def factory(config: SandboxConfig) -> _PreflightSandbox:
+            recorded_configs.append(config)
             return _PreflightSandbox(
                 config,
                 commands=recorded,
@@ -183,6 +186,35 @@ def test_preflight_requirements_fixture_reaches_reported_ready_state(
     assert all("train.py" not in command for command in commands)
     assert result.artifact_paths.environment_report.is_file()
     assert result.artifact_paths.agent_handoff.is_file()
+
+
+def test_evaluation_profile_uses_fixed_limits_and_records_them(
+    tmp_path: Path,
+) -> None:
+    configs: list[SandboxConfig] = []
+    service = _service(
+        tmp_path,
+        "fixture_b_requirements",
+        configs=configs,
+    )
+    request = PreflightRequest(
+        repository_url="https://github.com/example/preflight-fixture",
+        profile=PreflightProfile.EVALUATION,
+        no_ai=True,
+    )
+
+    result = service.preflight(request)
+
+    assert result.status is PreflightStatus.READY
+    assert len(configs) == 1
+    limits = configs[0].resource_limits
+    assert limits.cpus == 1
+    assert limits.memory == "512m"
+    assert limits.pids_limit == 128
+    evidence = json.loads(result.artifact_paths.environment_evidence.read_text())
+    assert evidence["execution_profile"]["profile"] == "evaluation"
+    assert evidence["plan"]["overall_timeout_seconds"] == 900
+    assert evidence["execution_profile"]["planner_limits"]["max_steps"] == 5
 
 
 def test_preflight_minimal_fixture_reaches_ready_without_external_packages(

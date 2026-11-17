@@ -18,8 +18,10 @@ from reproscout.preflight import (
     PreflightArtifactWriter,
     PreflightInspection,
     PreflightPlanner,
+    PreflightProfile,
     PreflightStatus,
     evaluate_preflight,
+    resolve_preflight_profile,
 )
 from reproscout.preflight.detector import inspect_environment
 from reproscout.preflight.evaluator import _python_constraints_are_observed
@@ -193,6 +195,46 @@ def test_working_preflight_is_ready_without_target_workflows() -> None:
     assert all(item.outcome == "PASSED" for item in assessment.commands)
 
 
+def test_default_profile_preserves_existing_preflight_limits() -> None:
+    inspection = _inspection(dependency_sources=["requirements.txt"])
+    default_plan = PreflightPlanner().create_plan(_analysis(), inspection)
+    selected = resolve_preflight_profile(PreflightProfile.DEFAULT)
+    selected_plan = PreflightPlanner(selected.planner_limits).create_plan(
+        _analysis(),
+        inspection,
+    )
+
+    assert selected.profile is PreflightProfile.DEFAULT
+    assert selected_plan.overall_timeout_seconds == default_plan.overall_timeout_seconds
+    assert [step.timeout_seconds for step in selected_plan.steps] == [
+        step.timeout_seconds for step in default_plan.steps
+    ]
+    assert selected.resource_limits.cpus == 1
+    assert selected.resource_limits.memory == "512m"
+    assert selected.resource_limits.pids_limit == 128
+
+
+def test_evaluation_profile_uses_fixed_non_escalating_limits() -> None:
+    selected = resolve_preflight_profile(PreflightProfile.EVALUATION)
+    plan = PreflightPlanner(selected.planner_limits).create_plan(
+        _analysis(),
+        _inspection(dependency_sources=["requirements.txt"]),
+    )
+
+    assert selected.planner_limits.max_steps == 5
+    assert selected.planner_limits.per_step_timeout_seconds == 180
+    assert plan.overall_timeout_seconds == 900
+    assert sum(step.timeout_seconds for step in plan.steps) <= 900
+    assert selected.resource_limits.cpus <= 1
+    assert selected.resource_limits.memory == "512m"
+    assert selected.resource_limits.pids_limit <= 128
+    assert not any("download" in item.lower() for item in selected.enforced_limits)
+    assert any("download" in item.lower() for item in selected.unverified_limits)
+    assert any(
+        "quota" in item.lower() for item in selected.external_infrastructure_limits
+    )
+
+
 def test_incompatible_environment_is_not_executed() -> None:
     inspection = _inspection(
         incompatibilities=["Python 3.13 is outside the supported runtime envelope."]
@@ -255,6 +297,52 @@ def test_incomplete_environment_is_not_called_ready_without_dependency_source() 
 
     assert assessment.status is PreflightStatus.INCOMPLETE
     assert assessment.verified_environment is False
+
+
+def test_incomplete_source_discovery_cannot_return_ready(tmp_path: Path) -> None:
+    inspection = _inspection(dependency_sources=["requirements.txt"]).model_copy(
+        update={
+            "discovery_complete": False,
+            "discovery_warnings": [
+                "Repository structure scan reached the entry limit."
+            ],
+        }
+    )
+    plan = PreflightPlanner().create_plan(_analysis(), inspection)
+
+    assessment = evaluate_preflight(inspection, plan, _execution(plan))
+
+    assert assessment.status is PreflightStatus.PARTIAL
+    assert assessment.verified_environment is False
+    assert "entry limit" in assessment.unresolved_problems[0]
+
+    manifest = RepositoryManifest(
+        repository_url="https://github.com/example/project",
+        normalized_url="https://github.com/example/project",
+        owner="example",
+        repository_name="project",
+        commit_sha="a" * 40,
+        workspace_path=tmp_path,
+        scan_truncated=True,
+        scan_warnings=inspection.discovery_warnings,
+    )
+    paths = PreflightArtifactWriter(tmp_path / "incomplete-discovery").write(
+        run_id="incomplete-discovery",
+        manifest=manifest,
+        plan=plan,
+        inspection=inspection,
+        assessment=assessment,
+    )
+
+    evidence = json.loads(paths.environment_evidence.read_text(encoding="utf-8"))
+    report = paths.environment_report.read_text(encoding="utf-8")
+    handoff = paths.agent_handoff.read_text(encoding="utf-8")
+    assert evidence["inspection"]["discovery_complete"] is False
+    assert evidence["inspection"]["discovery_warnings"] == [
+        "Repository structure scan reached the entry limit."
+    ]
+    assert "entry limit" in report
+    assert "entry limit" in handoff
 
 
 def test_sandbox_initialization_failure_is_unverified_not_partial() -> None:
@@ -332,7 +420,8 @@ def test_python_constraints_use_pep_440_specifiers() -> None:
 def test_detector_collects_package_tools_and_unsafe_instructions(
     tmp_path: Path,
 ) -> None:
-    (tmp_path / "README.md").write_text(
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "pipeline.md").write_text(
         "Install ffmpeg first.\n\n```sh\nsudo apt-get install ffmpeg\nrm -rf /\n```\n",
         encoding="utf-8",
     )
@@ -344,7 +433,7 @@ def test_detector_collects_package_tools_and_unsafe_instructions(
         repository_name="project",
         commit_sha="a" * 40,
         workspace_path=tmp_path,
-        documentation_files=["README.md"],
+        documentation_files=["docs/pipeline.md"],
         dependency_files=["requirements.txt"],
     )
     analysis = RepositoryAnalysis(
@@ -362,6 +451,32 @@ def test_detector_collects_package_tools_and_unsafe_instructions(
     assert inspection.unsafe_findings
     assert "sudo apt-get install ffmpeg" in inspection.unsafe_findings[0]
     assert "not executed" in inspection.unsafe_findings[0]
+
+
+def test_detector_marks_binary_setup_documentation_as_incomplete(
+    tmp_path: Path,
+) -> None:
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "setup.md").write_bytes(b"setup\x00binary")
+    (tmp_path / "requirements.txt").write_text("requests>=2\n", encoding="utf-8")
+    manifest = RepositoryManifest(
+        repository_url="https://github.com/example/project",
+        normalized_url="https://github.com/example/project",
+        owner="example",
+        repository_name="project",
+        commit_sha="a" * 40,
+        workspace_path=tmp_path,
+        documentation_files=["docs/setup.md"],
+        dependency_files=["requirements.txt"],
+    )
+
+    inspection = inspect_environment(manifest, _analysis())
+
+    assert inspection.discovery_complete is False
+    assert inspection.source_files == ["requirements.txt"]
+    assert inspection.discovery_warnings == [
+        "Could not safely inspect setup source docs/setup.md."
+    ]
 
 
 def test_detector_preserves_optional_pyproject_requirements(tmp_path: Path) -> None:
@@ -422,6 +537,51 @@ def test_preflight_artifacts_include_commit_commands_and_scope(tmp_path: Path) -
     assert "a" * 40 in handoff
     assert "training" in handoff
     assert "python -m pip check" in handoff
+
+
+def test_evaluation_artifacts_record_effective_and_unverified_limits(
+    tmp_path: Path,
+) -> None:
+    inspection = _inspection(dependency_sources=["requirements.txt"])
+    profile = resolve_preflight_profile(PreflightProfile.EVALUATION)
+    plan = PreflightPlanner(profile.planner_limits).create_plan(
+        _analysis(),
+        inspection,
+    )
+    assessment = evaluate_preflight(inspection, plan, _execution(plan))
+    manifest = RepositoryManifest(
+        repository_url="https://github.com/example/project",
+        normalized_url="https://github.com/example/project",
+        owner="example",
+        repository_name="project",
+        commit_sha="a" * 40,
+        workspace_path=tmp_path,
+    )
+
+    paths = PreflightArtifactWriter(tmp_path / "evaluation-run").write(
+        run_id="evaluation-run",
+        manifest=manifest,
+        plan=plan,
+        inspection=inspection,
+        assessment=assessment,
+        execution_profile=profile,
+    )
+
+    evidence = json.loads(paths.environment_evidence.read_text(encoding="utf-8"))
+    recorded = evidence["execution_profile"]
+    report = paths.environment_report.read_text(encoding="utf-8")
+    handoff = paths.agent_handoff.read_text(encoding="utf-8")
+
+    assert recorded["profile"] == "evaluation"
+    assert recorded["planner_limits"]["overall_timeout_seconds"] == 900
+    assert recorded["resource_limits"]["cpus"] == 1
+    assert recorded["resource_limits"]["memory"] == "512m"
+    assert recorded["resource_limits"]["pids_limit"] == 128
+    assert not any("download" in item.lower() for item in recorded["enforced_limits"])
+    assert any("download" in item.lower() for item in recorded["unverified_limits"])
+    assert "Selected profile: `evaluation`" in report
+    assert "Limits requiring external infrastructure" in report
+    assert "Selected profile: `evaluation`" in handoff
 
 
 def test_failed_preflight_artifacts_do_not_claim_a_revision_or_readiness(

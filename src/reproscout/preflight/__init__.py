@@ -6,12 +6,15 @@ from .models import (
     PreflightArtifactPaths,
     PreflightAssessment,
     PreflightCommandResult,
+    PreflightExecutionProfile,
     PreflightInspection,
+    PreflightProfile,
     PreflightRequirement,
     PreflightResult,
     PreflightStatus,
     RequirementKind,
     RequirementState,
+    resolve_preflight_profile,
 )
 from .planner import PreflightPlanner, PreflightPlanningError
 from .writer import PreflightArtifactWriter
@@ -21,9 +24,11 @@ __all__ = [
     "PreflightArtifactWriter",
     "PreflightAssessment",
     "PreflightCommandResult",
+    "PreflightExecutionProfile",
     "PreflightInspection",
     "PreflightPlanner",
     "PreflightPlanningError",
+    "PreflightProfile",
     "PreflightRequirement",
     "PreflightResult",
     "PreflightStatus",
@@ -31,4 +36,5 @@ __all__ = [
     "RequirementState",
     "evaluate_preflight",
     "inspect_environment",
+    "resolve_preflight_profile",
 ]

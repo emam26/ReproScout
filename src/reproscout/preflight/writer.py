@@ -13,8 +13,11 @@ from reproscout.security import redact_sensitive_text, reject_sensitive_mapping
 from .models import (
     PreflightArtifactPaths,
     PreflightAssessment,
+    PreflightExecutionProfile,
     PreflightInspection,
+    PreflightProfile,
     PreflightStatus,
+    resolve_preflight_profile,
 )
 
 
@@ -36,11 +39,15 @@ class PreflightArtifactWriter:
         plan: ReproductionPlan,
         inspection: PreflightInspection,
         assessment: PreflightAssessment,
+        execution_profile: PreflightExecutionProfile | None = None,
     ) -> PreflightArtifactPaths:
         evidence_path = self.root / "environment-evidence.json"
         report_path = self.root / "environment-report.md"
         handoff_path = self.root / "agent-handoff.md"
 
+        effective_profile = execution_profile or resolve_preflight_profile(
+            PreflightProfile.DEFAULT
+        )
         evidence = {
             "schema_version": "1.0",
             "workflow": "environment-preflight",
@@ -49,6 +56,7 @@ class PreflightArtifactWriter:
             "commit_sha": manifest.commit_sha,
             "status": assessment.status.value,
             "verified_environment": assessment.verified_environment,
+            "execution_profile": effective_profile.model_dump(mode="json"),
             "inspection": inspection.model_dump(mode="json"),
             "plan": plan.model_dump(mode="json"),
             "assessment": assessment.model_dump(mode="json"),
@@ -56,11 +64,17 @@ class PreflightArtifactWriter:
         self._write_json(evidence_path, evidence)
         self._write_text(
             report_path,
-            self._report(run_id, manifest, inspection, assessment),
+            self._report(
+                run_id,
+                manifest,
+                inspection,
+                assessment,
+                effective_profile,
+            ),
         )
         self._write_text(
             handoff_path,
-            self._handoff(run_id, manifest, plan, assessment),
+            self._handoff(run_id, manifest, plan, assessment, effective_profile),
         )
         return PreflightArtifactPaths(
             run_directory=self.root,
@@ -76,6 +90,7 @@ class PreflightArtifactWriter:
         repository: str,
         error: str,
         commit_sha: str | None = None,
+        execution_profile: PreflightExecutionProfile | None = None,
     ) -> PreflightArtifactPaths:
         """Write truthful artifacts when preflight stops before verification."""
 
@@ -86,6 +101,9 @@ class PreflightArtifactWriter:
         evidence_path = self.root / "environment-evidence.json"
         report_path = self.root / "environment-report.md"
         handoff_path = self.root / "agent-handoff.md"
+        effective_profile = execution_profile or resolve_preflight_profile(
+            PreflightProfile.DEFAULT
+        )
         evidence = {
             "schema_version": "1.0",
             "workflow": "environment-preflight",
@@ -94,6 +112,7 @@ class PreflightArtifactWriter:
             "commit_sha": commit_sha,
             "status": status.value,
             "verified_environment": False,
+            "execution_profile": effective_profile.model_dump(mode="json"),
             "failure": {
                 "detail": safe_error,
                 "pinned_revision_verified": commit_sha is not None,
@@ -163,6 +182,7 @@ class PreflightArtifactWriter:
                 "",
             ]
         )
+        report += "\n".join(self._profile_section(effective_profile)) + "\n"
         handoff = "\n".join(
             [
                 "# Agent Handoff: Environment Preflight",
@@ -195,6 +215,7 @@ class PreflightArtifactWriter:
                 "",
             ]
         )
+        handoff += "\n".join(self._profile_section(effective_profile)) + "\n"
         self._write_text(report_path, self._safe_text(report))
         self._write_text(handoff_path, self._safe_text(handoff))
         return PreflightArtifactPaths(
@@ -210,6 +231,7 @@ class PreflightArtifactWriter:
         manifest: RepositoryManifest,
         inspection: PreflightInspection,
         assessment: PreflightAssessment,
+        execution_profile: PreflightExecutionProfile,
     ) -> str:
         lines = [
             "# Environment Preflight Report",
@@ -226,14 +248,19 @@ class PreflightArtifactWriter:
                 "project, a scientific result, a test suite, a demo, an evaluation, or "
                 "training run was reproduced."
             ),
-            "",
-            "## Summary",
-            "",
-            assessment.summary,
-            "",
-            "## Verified environment",
-            "",
         ]
+        lines.extend(self._profile_section(execution_profile))
+        lines.extend(
+            [
+                "",
+                "## Summary",
+                "",
+                assessment.summary,
+                "",
+                "## Verified environment",
+                "",
+            ]
+        )
         if assessment.environment is not None:
             environment = assessment.environment
             lines.extend(
@@ -347,6 +374,7 @@ class PreflightArtifactWriter:
         manifest: RepositoryManifest,
         plan: ReproductionPlan,
         assessment: PreflightAssessment,
+        execution_profile: PreflightExecutionProfile,
     ) -> str:
         lines = [
             "# Agent Handoff: Environment Preflight",
@@ -359,10 +387,9 @@ class PreflightArtifactWriter:
             f"- Pinned commit: `{manifest.commit_sha}`",
             f"- Preflight status: `{assessment.status.value}`",
             f"- Environment verified: `{assessment.verified_environment}`",
-            "",
-            "## Verified environment",
-            "",
         ]
+        lines.extend(self._profile_section(execution_profile))
+        lines.extend(["", "## Verified environment", ""])
         if assessment.environment is not None:
             environment = assessment.environment
             lines.extend(
@@ -444,6 +471,46 @@ class PreflightArtifactWriter:
             ]
         )
         return self._safe_text("\n".join(lines) + "\n")
+
+    @staticmethod
+    def _profile_section(profile: PreflightExecutionProfile) -> list[str]:
+        limits = profile.resource_limits
+        lines = [
+            "",
+            "## Execution controls",
+            "",
+            f"- Selected profile: `{profile.profile.value}`",
+            (
+                "- Planner limits: "
+                f"`{profile.planner_limits.max_steps}` steps, "
+                f"`{profile.planner_limits.per_step_timeout_seconds:g}` seconds "
+                "per step, and "
+                f"`{profile.planner_limits.overall_timeout_seconds:g}` seconds "
+                "per plan."
+            ),
+            (
+                "- Docker limits requested: "
+                f"`{limits.cpus:g}` CPU, `{limits.memory}` memory, and "
+                f"`{limits.pids_limit}` PIDs."
+            ),
+            "",
+            "### Enforced limits",
+            "",
+            *(f"- {item}" for item in profile.enforced_limits),
+            "",
+            "### Best-effort limits",
+            "",
+            *(f"- {item}" for item in profile.best_effort_limits),
+            "",
+            "### Limits requiring external infrastructure",
+            "",
+            *(f"- {item}" for item in profile.external_infrastructure_limits),
+            "",
+            "### Unverified limits",
+            "",
+            *(f"- {item}" for item in profile.unverified_limits),
+        ]
+        return lines
 
     @staticmethod
     def _safe_text(value: str) -> str:

@@ -21,7 +21,7 @@ from reproscout.planning.safety import PlanSafetyError, validate_command
 from reproscout.repo import RepositoryManifest
 from reproscout.security import (
     BoundedReadError,
-    read_bounded_workspace_text,
+    read_bounded_workspace_file,
     redact_sensitive_text,
 )
 
@@ -35,6 +35,7 @@ from .models import (
 _MAX_DEPENDENCY_FILE_BYTES = 256 * 1024
 _MAX_REQUIREMENT_RECORDS = 2_000
 _MAX_UNSAFE_FINDING_CHARS = 2_000
+_MAX_INSPECTION_SOURCE_FILES = 100
 _KNOWN_SYSTEM_TOOLS = frozenset(
     {
         "7z",
@@ -84,13 +85,16 @@ def _append_unique(values: list[str], value: str) -> None:
 
 def _read_file(manifest: RepositoryManifest, relative: str) -> str | None:
     try:
-        return read_bounded_workspace_text(
+        raw = read_bounded_workspace_file(
             manifest.workspace_path,
             relative,
             max_bytes=_MAX_DEPENDENCY_FILE_BYTES,
         )
     except (BoundedReadError, OSError):
         return None
+    if b"\x00" in raw:
+        return None
+    return raw.decode("utf-8", errors="replace")
 
 
 def _requirement_records(
@@ -324,17 +328,63 @@ def inspect_environment(
     """Inspect setup declarations without executing repository code."""
 
     documents: list[tuple[str, str]] = []
-    for relative in sorted(
+    discovery_complete = not manifest.scan_truncated
+    discovery_warnings = list(manifest.scan_warnings)
+    candidates = sorted(
         {
             *manifest.documentation_files,
             *manifest.dependency_files,
             *manifest.dockerfile_indicators,
-            *manifest.ci_workflow_indicators,
+            *(
+                source
+                for source in manifest.ci_workflow_indicators
+                if not source.endswith("/")
+            ),
         }
-    ):
+    )
+    for relative in candidates:
+        if len(documents) >= _MAX_INSPECTION_SOURCE_FILES:
+            discovery_complete = False
+            _append_unique(
+                discovery_warnings,
+                "Preflight source discovery reached the file limit; some setup "
+                "sources were not inspected.",
+            )
+            break
         text = _read_file(manifest, relative)
         if text is not None:
             documents.append((relative, text))
+        else:
+            discovery_complete = False
+            _append_unique(
+                discovery_warnings,
+                f"Could not safely inspect setup source {relative}.",
+            )
+
+    analysis_sources = set(analysis.context_files)
+    omitted_sources = sorted(
+        {path for path, _ in documents} - analysis_sources
+    )
+    if omitted_sources:
+        discovery_complete = False
+        _append_unique(
+            discovery_warnings,
+            (
+                "Repository analysis did not inspect "
+                f"{len(omitted_sources)} setup source(s); their environment "
+                "requirements are unverified."
+            ),
+        )
+    if analysis.truncated_context_files:
+        discovery_complete = False
+        _append_unique(
+            discovery_warnings,
+            (
+                "Repository analysis truncated "
+                f"{len(analysis.truncated_context_files)} setup source(s); their "
+                "environment requirements are unverified."
+            ),
+        )
 
     package_requirements: list[RequirementRecord] = []
     optional_package_requirements: list[RequirementRecord] = []
@@ -620,4 +670,6 @@ def inspect_environment(
         unverified_capabilities=unverified,
         unsafe_findings=_unsafe_findings(documents),
         source_files=[path for path, _ in documents],
+        discovery_complete=discovery_complete,
+        discovery_warnings=discovery_warnings,
     )

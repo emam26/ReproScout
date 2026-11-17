@@ -13,6 +13,8 @@ from reproscout.diagnostics import (
     EnvironmentFingerprint,
     RequirementRecord,
 )
+from reproscout.planning import PlannerLimits
+from reproscout.sandbox import ResourceLimits
 
 
 class PreflightStatus(StrEnum):
@@ -26,6 +28,118 @@ class PreflightStatus(StrEnum):
     UNSAFE = "UNSAFE"
     INCOMPLETE = "INCOMPLETE"
     UNVERIFIED = "UNVERIFIED"
+
+
+class PreflightProfile(StrEnum):
+    """Fixed execution policies available to environment preflight callers."""
+
+    DEFAULT = "default"
+    EVALUATION = "evaluation"
+
+
+class PreflightExecutionProfile(BaseModel):
+    """Typed, reportable limits selected before a preflight starts."""
+
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    profile: PreflightProfile
+    planner_limits: PlannerLimits
+    resource_limits: ResourceLimits
+    enforced_limits: list[str] = Field(default_factory=list, max_length=20)
+    best_effort_limits: list[str] = Field(default_factory=list, max_length=20)
+    external_infrastructure_limits: list[str] = Field(
+        default_factory=list, max_length=20
+    )
+    unverified_limits: list[str] = Field(default_factory=list, max_length=20)
+
+
+def resolve_preflight_profile(
+    profile: PreflightProfile,
+) -> PreflightExecutionProfile:
+    """Return an allowlisted profile without accepting caller-controlled limits."""
+
+    resource_limits = ResourceLimits()
+    common_external_limits = [
+        (
+            "A quota-backed runs directory and Docker data root are required to "
+            "bound cumulative host clone, workspace, and image-cache storage."
+        ),
+        (
+            "A metered or allowlisted egress proxy is required to bound dependency "
+            "download volume."
+        ),
+    ]
+    common_unverified_limits = [
+        "ReproScout does not enforce a network download-byte quota.",
+        "ReproScout does not enforce a cumulative host or Docker storage quota.",
+    ]
+    if profile is PreflightProfile.EVALUATION:
+        planner_limits = PlannerLimits(
+            max_steps=5,
+            per_step_timeout_seconds=180,
+            overall_timeout_seconds=900,
+        )
+        return PreflightExecutionProfile(
+            profile=profile,
+            planner_limits=planner_limits,
+            resource_limits=resource_limits,
+            enforced_limits=[
+                "Preflight planning permits at most five setup-only steps.",
+                "Each permitted preflight step is limited to 180 seconds.",
+                "The plan execution budget is limited to 900 seconds.",
+                "Docker is configured for at most 1 CPU, 512 MiB memory, and 128 PIDs.",
+            ],
+            best_effort_limits=[
+                (
+                    "The remaining plan budget is passed to sandbox creation and "
+                    "rechecked before every permitted command."
+                ),
+                (
+                    "Docker availability checks, management calls, and forced "
+                    "cleanup are independently bounded but can extend wall-clock "
+                    "time beyond the 900-second plan budget."
+                ),
+            ],
+            external_infrastructure_limits=common_external_limits,
+            unverified_limits=[
+                *common_unverified_limits,
+                (
+                    "A strict end-to-end 900-second wall-clock limit is not "
+                    "independently enforceable by the current Docker lifecycle."
+                ),
+            ],
+        )
+
+    planner_limits = PlannerLimits(
+        max_steps=30,
+        per_step_timeout_seconds=300,
+        overall_timeout_seconds=1_800,
+    )
+    return PreflightExecutionProfile(
+        profile=PreflightProfile.DEFAULT,
+        planner_limits=planner_limits,
+        resource_limits=resource_limits,
+        enforced_limits=[
+            "Preflight planning permits at most 30 setup-only steps.",
+            "Each permitted preflight step is limited to 300 seconds.",
+            "The plan execution budget is limited to 1,800 seconds.",
+            "Docker is configured for at most 1 CPU, 512 MiB memory, and 128 PIDs.",
+        ],
+        best_effort_limits=[
+            (
+                "The remaining plan budget is passed to sandbox creation and "
+                "rechecked before every permitted command."
+            ),
+        ],
+        external_infrastructure_limits=common_external_limits,
+        unverified_limits=[
+            *common_unverified_limits,
+            (
+                "The plan execution budget does not independently bound all Docker "
+                "management and cleanup wall-clock time."
+            ),
+        ],
+    )
 
 
 class RequirementKind(StrEnum):
@@ -90,6 +204,8 @@ class PreflightInspection(BaseModel):
     unverified_capabilities: list[str] = Field(default_factory=list, max_length=100)
     unsafe_findings: list[str] = Field(default_factory=list, max_length=100)
     source_files: list[str] = Field(default_factory=list, max_length=100)
+    discovery_complete: bool = True
+    discovery_warnings: list[str] = Field(default_factory=list, max_length=100)
 
 
 class PreflightCommandResult(BaseModel):
