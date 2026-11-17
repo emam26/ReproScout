@@ -18,7 +18,13 @@ from reproscout.planning import (
     ReproductionPlan,
     RiskLevel,
 )
-from reproscout.sandbox import ExecutionResult, Sandbox, SandboxConfig, SandboxError
+from reproscout.sandbox import (
+    ExecutionResult,
+    ResourceLimits,
+    Sandbox,
+    SandboxConfig,
+    SandboxError,
+)
 from reproscout.state import EventType, RunOutcome, SQLiteRunStore, Stage
 
 
@@ -304,6 +310,102 @@ def test_timeout_is_captured_and_classified(tmp_path: Path) -> None:
 
     assert result.steps[0].timed_out is True
     assert result.failure_kind is ExecutionFailureKind.TIMEOUT
+
+
+def test_sandbox_creation_consumes_budget_before_any_command(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_directory, workspace = _workspace(tmp_path)
+    clock = [0.0]
+    created: list[FakeSandbox] = []
+    monkeypatch.setattr(
+        "reproscout.execution.engine.time.monotonic",
+        lambda: clock[0],
+    )
+
+    class SlowCreateSandbox(FakeSandbox):
+        def create(self) -> None:
+            super().create()
+            clock[0] += 61
+
+    def factory(config: SandboxConfig) -> FakeSandbox:
+        sandbox = SlowCreateSandbox(config, [_result("must-not-run")])
+        created.append(sandbox)
+        return sandbox
+
+    plan = _plan([_step("step-001", "python setup.py")]).model_copy(
+        update={"overall_timeout_seconds": 60}
+    )
+    with SQLiteRunStore(tmp_path / "state.sqlite3") as store:
+        run_id = _create_planned_run(store)
+        result = PlanExecutionEngine(store, sandbox_factory=factory).execute(
+            plan,
+            run_id=run_id,
+            run_directory=run_directory,
+            workspace=workspace,
+            resource_limits=ResourceLimits(create_timeout_seconds=120),
+        )
+
+    assert created[0].config.resource_limits.create_timeout_seconds == 60
+    assert created[0].commands == []
+    assert created[0].destroyed is True
+    assert result.workflow_succeeded is False
+    assert result.failure_kind is ExecutionFailureKind.TIMEOUT
+    assert result.steps[0].timed_out is True
+
+
+def test_deadline_prevents_later_commands_from_starting(
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    run_directory, workspace = _workspace(tmp_path)
+    clock = [0.0]
+    created: list[FakeSandbox] = []
+    monkeypatch.setattr(
+        "reproscout.execution.engine.time.monotonic",
+        lambda: clock[0],
+    )
+
+    class AdvancingSandbox(FakeSandbox):
+        def execute(
+            self,
+            command: str,
+            *,
+            timeout_seconds: float | None = None,
+        ) -> ExecutionResult:
+            result = super().execute(command, timeout_seconds=timeout_seconds)
+            clock[0] += 61
+            return result
+
+    def factory(config: SandboxConfig) -> FakeSandbox:
+        sandbox = AdvancingSandbox(
+            config,
+            [_result("first"), _result("must-not-run")],
+        )
+        created.append(sandbox)
+        return sandbox
+
+    plan = _plan(
+        [
+            _step("step-001", "python first.py"),
+            _step("step-002", "python second.py"),
+        ]
+    ).model_copy(update={"overall_timeout_seconds": 60, "sandbox_scope": "plan"})
+    with SQLiteRunStore(tmp_path / "state.sqlite3") as store:
+        run_id = _create_planned_run(store)
+        result = PlanExecutionEngine(store, sandbox_factory=factory).execute(
+            plan,
+            run_id=run_id,
+            run_directory=run_directory,
+            workspace=workspace,
+        )
+
+    assert [command for command, _ in created[0].commands] == ["python first.py"]
+    assert created[0].destroyed is True
+    assert result.workflow_succeeded is False
+    assert result.failed_step_id == "step-002"
+    assert result.steps[-1].timed_out is True
 
 
 @pytest.mark.parametrize(

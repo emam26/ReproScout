@@ -33,7 +33,8 @@ Each container receives:
 
 * `--cap-drop=ALL`
 * `--security-opt=no-new-privileges`
-* bridge networking by default, or no networking when configured
+* no networking by default; a plan may select bridge networking only when a
+  permitted dependency-installation step requires it
 * 512 MB memory
 * 1 CPU
 * 128 PID limit
@@ -66,6 +67,30 @@ The exact container ID is retained by the `DockerSandbox` instance. Cleanup
 removes only that ID (or the unique ReproScout-generated name if creation
 fails). Timeout handling destroys the owned container before returning a
 timed-out result. ReproScout never performs global Docker cleanup.
+
+## Evaluation preflight profile
+
+`reproscout preflight <github-url> --profile evaluation` keeps all existing
+sandbox controls and selects a fixed lower execution policy: at most five
+setup-only steps, 180 seconds per step, and a 900-second plan budget. It does
+not raise the Docker CPU, memory, PID, networking, capability, filesystem, or
+ownership settings.
+
+The execution engine gives sandbox creation the remaining plan budget and
+rechecks the deadline before each command. Docker daemon availability checks,
+management calls, and forced cleanup are separately bounded, so the profile
+does not claim a strict end-to-end 900-second wall-clock guarantee. It also
+does not meter network download volume or cumulative storage for host clones,
+run directories, Docker images, or daemon cache. Enforce those evaluator-wide
+limits with external filesystem quotas and a metered or allowlisted egress
+proxy; the generated evidence marks them as external and unverified.
+
+## Testing
+
+Offline tests cover profile selection, immutable resource settings, artifact
+disclosure, deadline exhaustion before command launch, and cleanup-failure
+classification. Docker integration tests remain a separate, daemon-dependent
+validation gate and must verify exact owned-container cleanup.
 
 ## Known limitations
 

@@ -14,7 +14,13 @@ from reproscout.diagnostics import (
     collect_environment_fingerprint,
 )
 from reproscout.planning import PlanActionType, PlanStep, ReproductionPlan
-from reproscout.sandbox import DockerSandbox, ExecutionResult, Sandbox, SandboxConfig
+from reproscout.sandbox import (
+    DockerSandbox,
+    ExecutionResult,
+    ResourceLimits,
+    Sandbox,
+    SandboxConfig,
+)
 from reproscout.sandbox.base import SandboxError
 from reproscout.security import redact_sensitive_text
 from reproscout.state import (
@@ -121,6 +127,7 @@ class PlanExecutionEngine:
         workspace: Path,
         allow_repair: bool = False,
         finalize: bool = True,
+        resource_limits: ResourceLimits | None = None,
     ) -> ExecutionRunResult:
         state = self.store.get_run(run_id)
         if state.stage not in {Stage.PLAN, Stage.DEBUG}:
@@ -131,6 +138,7 @@ class PlanExecutionEngine:
         artifacts = RunArtifacts.create(run_directory, workspace)
         started_at = datetime.now(UTC)
         started_monotonic = time.monotonic()
+        effective_resource_limits = resource_limits or ResourceLimits()
         if state.stage is Stage.PLAN:
             self.store.transition(run_id, Stage.SETUP)
             self.store.transition(run_id, Stage.EXECUTE)
@@ -160,6 +168,14 @@ class PlanExecutionEngine:
                     result = self._record_budget_timeout(run_id, step, attempt_number)
                 else:
                     environment = plan.resolved_environment
+                    sandbox_resource_limits = effective_resource_limits.model_copy(
+                        update={
+                            "create_timeout_seconds": min(
+                                effective_resource_limits.create_timeout_seconds,
+                                remaining,
+                            )
+                        }
+                    )
                     sandbox_config = SandboxConfig(
                         workspace_path=Path(workspace),
                         run_id=f"{run_id}-{attempt_number}",
@@ -175,6 +191,7 @@ class PlanExecutionEngine:
                             if step.network_required
                             else "none"
                         ),
+                        resource_limits=sandbox_resource_limits,
                     )
                     sandbox = shared_sandbox
                     result: StepExecutionResult | None = None
@@ -184,27 +201,43 @@ class PlanExecutionEngine:
                             if reuse_sandbox:
                                 shared_sandbox = sandbox
                             sandbox.create()
-                        result = self._execute_step(
-                            sandbox,
-                            run_id,
-                            step,
-                            attempt_number,
-                            timeout_seconds=min(step.timeout_seconds, remaining),
-                        )
+                        elapsed = time.monotonic() - started_monotonic
+                        remaining = plan.overall_timeout_seconds - elapsed
+                        if remaining <= 0:
+                            result = self._record_budget_timeout(
+                                run_id,
+                                step,
+                                attempt_number,
+                            )
+                        else:
+                            result = self._execute_step(
+                                sandbox,
+                                run_id,
+                                step,
+                                attempt_number,
+                                timeout_seconds=min(step.timeout_seconds, remaining),
+                            )
                         if isinstance(sandbox, DockerSandbox) and not result.timed_out:
-                            try:
-                                environment_fingerprint = (
-                                    collect_environment_fingerprint(
-                                        sandbox,
-                                        repository_commit_sha=plan.commit_sha,
-                                        config=(
-                                            getattr(sandbox, "config", None)
-                                            or sandbox_config
-                                        ),
+                            elapsed = time.monotonic() - started_monotonic
+                            remaining = plan.overall_timeout_seconds - elapsed
+                            if remaining > 0:
+                                try:
+                                    environment_fingerprint = (
+                                        collect_environment_fingerprint(
+                                            sandbox,
+                                            repository_commit_sha=plan.commit_sha,
+                                            config=(
+                                                getattr(sandbox, "config", None)
+                                                or sandbox_config
+                                            ),
+                                            timeout_seconds=min(30.0, remaining),
+                                        )
                                     )
-                                )
-                            except (EnvironmentFingerprintError, SandboxError):
-                                environment_fingerprint = None
+                                except (
+                                    EnvironmentFingerprintError,
+                                    SandboxError,
+                                ):
+                                    environment_fingerprint = None
                     except SandboxError as exc:
                         result = self._record_sandbox_failure(
                             run_id,
