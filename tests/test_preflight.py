@@ -475,7 +475,8 @@ def test_detector_marks_binary_setup_documentation_as_incomplete(
     assert inspection.discovery_complete is False
     assert inspection.source_files == ["requirements.txt"]
     assert inspection.discovery_warnings == [
-        "Could not safely inspect setup source docs/setup.md."
+        "Could not safely inspect setup source docs/setup.md.",
+        "Repository analysis did not inspect 1 setup source(s); their environment requirements are unverified.",
     ]
 
 

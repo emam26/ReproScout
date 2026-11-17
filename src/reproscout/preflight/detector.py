@@ -362,9 +362,7 @@ def inspect_environment(
             )
 
     analysis_sources = set(analysis.context_files)
-    omitted_sources = sorted(
-        {path for path, _ in documents} - analysis_sources
-    )
+    omitted_sources = sorted({path for path, _ in documents} - analysis_sources)
     if omitted_sources:
         discovery_complete = False
         _append_unique(
