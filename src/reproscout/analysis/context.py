@@ -6,7 +6,7 @@ import re
 from dataclasses import dataclass
 from pathlib import Path
 
-from reproscout.repo import RepositoryManifest
+from reproscout.repo import RepositoryManifest, is_documentation_path
 from reproscout.security import BoundedReadError, read_bounded_workspace_file
 
 
@@ -33,6 +33,7 @@ class ContextDocument:
 
     path: str
     text: str
+    truncated: bool = False
 
 
 _RELEVANT_NAMES = {
@@ -55,6 +56,8 @@ def _is_relevant(path: str) -> bool:
     parts = Path(path).parts
     name = Path(path).name.lower()
     if name in _RELEVANT_NAMES:
+        return True
+    if is_documentation_path(path):
         return True
     if name.startswith(("readme", "install", "requirements", "dockerfile")):
         return True
@@ -108,7 +111,14 @@ def collect_context_documents(
         remaining = policy.max_total_characters - total_characters
         if remaining <= 0:
             break
+        truncated = len(text) > remaining
         text = text[:remaining]
-        documents.append(ContextDocument(path=relative_path.as_posix(), text=text))
+        documents.append(
+            ContextDocument(
+                path=relative_path.as_posix(),
+                text=text,
+                truncated=truncated,
+            )
+        )
         total_characters += len(text)
     return documents

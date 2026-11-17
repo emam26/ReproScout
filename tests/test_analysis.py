@@ -13,7 +13,7 @@ from reproscout.analysis import (
     collect_context_documents,
 )
 from reproscout.llm import AgentDecision, MockLLMProvider
-from reproscout.repo import RepositoryManifest
+from reproscout.repo import RepositoryManifest, is_documentation_path
 
 
 def _manifest(root: Path, files: dict[str, str | bytes]) -> RepositoryManifest:
@@ -25,11 +25,7 @@ def _manifest(root: Path, files: dict[str, str | bytes]) -> RepositoryManifest:
         else:
             path.write_text(contents, encoding="utf-8")
     paths = sorted(files)
-    documentation = [
-        path
-        for path in paths
-        if Path(path).name.lower().startswith(("readme", "install"))
-    ]
+    documentation = [path for path in paths if is_documentation_path(path)]
     dependencies = [
         path
         for path in paths
@@ -168,6 +164,31 @@ def test_readme_extracts_documented_workflow_environment_assets_and_gpu(
     )
 
 
+def test_nested_pipeline_documentation_is_analyzed_without_execution(
+    tmp_path: Path,
+) -> None:
+    manifest = _manifest(
+        tmp_path,
+        {
+            "docs/pipeline.md": """
+                Requires Python 3.11 and a CUDA GPU.
+
+                export MODEL_CACHE=/tmp/models
+                Download checkpoint: https://example.com/models/model.ckpt
+                python train.py --checkpoint model.ckpt
+            """,
+        },
+    )
+
+    analysis = _analyze(manifest)
+
+    assert analysis.python_version_hints == ["3.11"]
+    assert analysis.gpu_required is True
+    assert analysis.environment_variables == ["MODEL_CACHE"]
+    assert analysis.external_assets == ["https://example.com/models/model.ckpt"]
+    assert analysis.run_commands == ["python train.py --checkpoint model.ckpt"]
+
+
 def test_dockerfile_and_ci_supply_runtime_and_test_hints(tmp_path: Path) -> None:
     manifest = _manifest(
         tmp_path,
@@ -256,6 +277,19 @@ def test_context_packet_skips_binary_large_and_git_files(tmp_path: Path) -> None
     )
 
     assert [document.path for document in documents] == ["requirements.txt"]
+
+
+def test_context_records_total_limit_truncation_in_analysis(tmp_path: Path) -> None:
+    manifest = _manifest(tmp_path, {"README.md": "A" * 100})
+    limits = ContextLimits(max_files=5, max_file_bytes=200, max_total_characters=50)
+
+    documents = collect_context_documents(manifest, limits)
+    analysis = asyncio.run(RepositoryAnalyzer(limits).analyze(manifest))
+
+    assert documents[0].truncated is True
+    assert len(documents[0].text) == 50
+    assert analysis.context_files == ["README.md"]
+    assert analysis.truncated_context_files == ["README.md"]
 
 
 def test_mock_provider_supplements_only_ambiguous_analysis(tmp_path: Path) -> None:

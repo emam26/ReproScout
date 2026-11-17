@@ -15,7 +15,7 @@ from packaging.version import Version
 from pydantic import ValidationError
 
 from reproscout.llm import LLMProvider, LLMRequest
-from reproscout.repo import RepositoryManifest
+from reproscout.repo import RepositoryManifest, is_documentation_path
 
 from .context import ContextDocument, ContextLimits, collect_context_documents
 from .models import (
@@ -81,7 +81,13 @@ class _AnalysisBuilder:
             for item in self.evidence
         )
 
-    def build(self, context_files: list[str], confidence: float) -> RepositoryAnalysis:
+    def build(
+        self,
+        context_files: list[str],
+        confidence: float,
+        *,
+        truncated_context_files: list[str] | None = None,
+    ) -> RepositoryAnalysis:
         resolved_environment = _resolve_environment(self)
         return RepositoryAnalysis(
             repository=f"{self.manifest.owner}/{self.manifest.repository_name}",
@@ -103,6 +109,7 @@ class _AnalysisBuilder:
             evidence=self.evidence,
             conflicts=self.conflicts,
             context_files=context_files,
+            truncated_context_files=truncated_context_files or [],
             confidence=confidence,
             resolved_environment=resolved_environment,
         )
@@ -620,7 +627,7 @@ def _deterministic_analysis(
             _analyze_setup_metadata(builder, document)
         elif name.startswith("dockerfile"):
             _analyze_dockerfile(builder, document)
-        elif name.startswith(("readme", "install")):
+        elif is_documentation_path(document.path):
             _analyze_documentation(builder, document)
         elif len(lowered_parts) >= 3 and lowered_parts[-3:-1] == (
             ".github",
@@ -716,6 +723,9 @@ class RepositoryAnalyzer:
             preliminary = builder.build(
                 [document.path for document in documents],
                 confidence,
+                truncated_context_files=[
+                    document.path for document in documents if document.truncated
+                ],
             )
             response = await provider.decide(
                 LLMRequest(
@@ -754,4 +764,7 @@ class RepositoryAnalyzer:
         return builder.build(
             [document.path for document in documents],
             confidence,
+            truncated_context_files=[
+                document.path for document in documents if document.truncated
+            ],
         )

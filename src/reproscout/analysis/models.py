@@ -70,6 +70,7 @@ class RepositoryAnalysis(BaseModel):
     evidence: list[AnalysisEvidence] = Field(default_factory=list)
     conflicts: list[str] = Field(default_factory=list)
     context_files: list[str] = Field(default_factory=list)
+    truncated_context_files: list[str] = Field(default_factory=list, max_length=20)
     confidence: float = Field(default=0.5, ge=0, le=1)
     resolved_environment: ResolvedEnvironment | None = None
 

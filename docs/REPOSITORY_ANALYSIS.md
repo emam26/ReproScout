@@ -14,7 +14,9 @@ standard-library parsers or conservative pattern extraction for:
 * pytest/tox configuration and Make targets;
 * Docker base-image, Python, and CUDA hints;
 * GitHub Actions Python versions and commands;
-* documented README/INSTALL setup, test, and run commands;
+* root and nested README, INSTALL, CONTRIBUTING, setup, environment, pipeline,
+  quick-start, and usage notes (for example, `docs/setup.md` and
+  `docs/pipeline.md`) for documented setup, test, and run commands;
 * documented environment-variable names, external assets, checkpoints, and
   explicit GPU requirements.
 
@@ -26,7 +28,7 @@ during analysis.
 `RepositoryAnalysis` records project/runtime hints, package manager,
 dependencies, install/test/run commands, entrypoints, environment-variable
 names, assets, GPU/network requirements, a likely execution target, conflicts,
-context-file names, and confidence.
+context-file names, truncated context-file names, and confidence.
 
 Important claims retain `AnalysisEvidence` with one of three provenance values:
 
@@ -48,6 +50,14 @@ parent-relative paths, symlinks, `.git`, binary files, and oversized files are
 excluded. Credential-shaped assignments are redacted before context is built.
 Datasets, checkpoints, generated trees, and arbitrary source files are not
 collected.
+
+The structural manifest is likewise bounded: it scans at most 20,000 entries,
+12 directory levels, 100 setup-documentation files, and 50 dependency files.
+Skipped setup-source symlinks, unreadable sources, truncated analysis context,
+and exhausted discovery limits are recorded as incomplete discovery. Unrelated
+symlinked files are not treated as setup evidence. Preflight can still verify
+the sources it did inspect, but it reports `PARTIAL` rather than `READY` when
+undiscovered setup requirements could remain.
 
 ## Optional LLM interpretation
 
