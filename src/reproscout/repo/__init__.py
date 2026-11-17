@@ -9,7 +9,13 @@ from .clone import (
     clone_repository_at_commit,
     create_run_workspace,
 )
-from .manifest import ManifestError, RepositoryManifest, build_manifest
+from .manifest import (
+    ManifestError,
+    ManifestScanLimits,
+    RepositoryManifest,
+    build_manifest,
+    is_documentation_path,
+)
 from .urls import GitHubRepository, RepositoryUrlError, parse_github_url
 
 __all__ = [
@@ -17,6 +23,7 @@ __all__ = [
     "CloneResult",
     "GitHubRepository",
     "ManifestError",
+    "ManifestScanLimits",
     "RepositoryManifest",
     "RepositoryUrlError",
     "RunWorkspace",
@@ -25,5 +32,6 @@ __all__ = [
     "clone_repository",
     "clone_repository_at_commit",
     "create_run_workspace",
+    "is_documentation_path",
     "parse_github_url",
 ]

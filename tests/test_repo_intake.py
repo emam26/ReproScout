@@ -11,7 +11,7 @@ from reproscout.repo.clone import (
     clone_repository,
     create_run_workspace,
 )
-from reproscout.repo.manifest import build_manifest
+from reproscout.repo.manifest import ManifestScanLimits, build_manifest
 from reproscout.repo.urls import RepositoryUrlError, parse_github_url
 
 
@@ -137,6 +137,143 @@ def test_fixture_b_manifest_captures_structural_indicators(tmp_path: Path) -> No
     assert manifest.script_indicators == ["scripts/", "scripts/check.py"]
     assert manifest.has_dockerfile is True
     assert manifest.has_ci_workflows is True
+
+
+def test_manifest_recognizes_nested_setup_documentation(tmp_path: Path) -> None:
+    source, _ = _create_fixture_repository(
+        tmp_path,
+        {
+            "README.md": "fixture documentation\n",
+            "docs/setup.md": "setup notes\n",
+            "docs/guides/pipeline.md": "pipeline notes\n",
+            "environments/setup-notes.rst": "environment setup\n",
+            "docs/architecture.md": "not a setup source\n",
+        },
+    )
+    workspace = create_run_workspace(tmp_path / "runs")
+    clone = clone_repository(source.as_uri(), workspace.repository_path)
+
+    manifest = build_manifest(
+        parse_github_url("https://github.com/example/nested-documentation"),
+        clone,
+    )
+
+    assert manifest.documentation_files == [
+        "README.md",
+        "docs/guides/pipeline.md",
+        "docs/setup.md",
+        "environments/setup-notes.rst",
+    ]
+    assert manifest.scan_truncated is False
+
+
+def test_manifest_records_bounded_discovery_as_incomplete(tmp_path: Path) -> None:
+    source, _ = _create_fixture_repository(
+        tmp_path,
+        {
+            "README.md": "fixture documentation\n",
+            "docs/guides/pipeline.md": "pipeline notes\n",
+            "docs/setup.md": "setup notes\n",
+        },
+    )
+    workspace = create_run_workspace(tmp_path / "runs")
+    clone = clone_repository(source.as_uri(), workspace.repository_path)
+
+    manifest = build_manifest(
+        parse_github_url("https://github.com/example/bounded-documentation"),
+        clone,
+        limits=ManifestScanLimits(
+            max_depth=1,
+            max_entries=100,
+            max_documentation_files=1,
+            max_dependency_files=50,
+        ),
+    )
+
+    assert manifest.scan_truncated is True
+    assert any("depth limit" in warning for warning in manifest.scan_warnings)
+    assert any("file limit" in warning for warning in manifest.scan_warnings)
+    assert len(manifest.documentation_files) == 1
+
+
+def test_manifest_skips_symlinked_setup_documentation(tmp_path: Path) -> None:
+    source, _ = _create_fixture_repository(
+        tmp_path,
+        {
+            "README.md": "fixture documentation\n",
+            "notes.md": "setup notes\n",
+        },
+    )
+    docs = source / "docs"
+    docs.mkdir()
+    try:
+        (docs / "setup.md").symlink_to("../notes.md")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation is unavailable in this environment")
+    _run_git(["add", "docs/setup.md"], source)
+    _run_git(["commit", "-m", "add setup symlink"], source)
+
+    workspace = create_run_workspace(tmp_path / "runs")
+    clone = clone_repository(source.as_uri(), workspace.repository_path)
+    manifest = build_manifest(
+        parse_github_url("https://github.com/example/symlinked-documentation"),
+        clone,
+    )
+
+    assert manifest.documentation_files == ["README.md"]
+    assert manifest.scan_truncated is True
+    assert "symlinked setup source" in manifest.scan_warnings[0]
+
+
+def test_manifest_ignores_irrelevant_symlink_without_partial_result(
+    tmp_path: Path,
+) -> None:
+    source, _ = _create_fixture_repository(
+        tmp_path,
+        {
+            "README.md": "fixture documentation\n",
+            "src/main.py": "print('fixture')\n",
+        },
+    )
+    try:
+        (source / "src" / "helper.py").symlink_to("main.py")
+    except (OSError, NotImplementedError):
+        pytest.skip("symlink creation is unavailable in this environment")
+    _run_git(["add", "src/helper.py"], source)
+    _run_git(["commit", "-m", "add irrelevant symlink"], source)
+
+    workspace = create_run_workspace(tmp_path / "runs")
+    clone = clone_repository(source.as_uri(), workspace.repository_path)
+    manifest = build_manifest(
+        parse_github_url("https://github.com/example/irrelevant-symlink"),
+        clone,
+    )
+
+    assert manifest.documentation_files == ["README.md"]
+    assert manifest.scan_truncated is False
+    assert manifest.scan_warnings == []
+
+
+def test_manifest_ignores_irrelevant_binary_file(tmp_path: Path) -> None:
+    source, _ = _create_fixture_repository(
+        tmp_path,
+        {"README.md": "fixture documentation\n"},
+    )
+    binary_path = source / "assets" / "weights.bin"
+    binary_path.parent.mkdir()
+    binary_path.write_bytes(b"\x00\x01\x02")
+    _run_git(["add", "assets/weights.bin"], source)
+    _run_git(["commit", "-m", "add irrelevant binary"], source)
+
+    workspace = create_run_workspace(tmp_path / "runs")
+    clone = clone_repository(source.as_uri(), workspace.repository_path)
+    manifest = build_manifest(
+        parse_github_url("https://github.com/example/irrelevant-binary"),
+        clone,
+    )
+
+    assert manifest.scan_truncated is False
+    assert manifest.scan_warnings == []
 
 
 def test_run_workspace_paths_are_isolated_and_collision_resistant(

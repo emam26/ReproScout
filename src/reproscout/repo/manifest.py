@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fnmatch
 import os
+from dataclasses import dataclass
 from pathlib import Path
 
 from pydantic import BaseModel, Field
@@ -14,6 +15,25 @@ from .urls import GitHubRepository
 
 class ManifestError(RuntimeError):
     """Raised when a repository cannot be structurally inspected."""
+
+
+@dataclass(frozen=True, slots=True)
+class ManifestScanLimits:
+    """Bounds for deterministic repository structure discovery."""
+
+    max_depth: int = 12
+    max_entries: int = 20_000
+    max_documentation_files: int = 100
+    max_dependency_files: int = 50
+
+    def __post_init__(self) -> None:
+        if (
+            self.max_depth < 1
+            or self.max_entries < 1
+            or self.max_documentation_files < 1
+            or self.max_dependency_files < 1
+        ):
+            raise ValueError("Manifest scan limits must be positive.")
 
 
 class RepositoryManifest(BaseModel):
@@ -38,9 +58,20 @@ class RepositoryManifest(BaseModel):
     has_tests: bool = False
     has_dockerfile: bool = False
     has_ci_workflows: bool = False
+    scan_truncated: bool = False
+    scan_warnings: list[str] = Field(default_factory=list, max_length=100)
 
 
 _DOCUMENTATION_PREFIXES = ("readme", "install", "contributing")
+_DOCUMENTATION_STEM_PREFIXES = (
+    "setup",
+    "environment",
+    "pipeline",
+    "quickstart",
+    "getting-started",
+    "usage",
+)
+_DOCUMENTATION_EXTENSIONS = {"", ".md", ".mdx", ".rst", ".txt"}
 _DEPENDENCY_NAMES = {
     "pyproject.toml",
     "setup.py",
@@ -72,28 +103,122 @@ def _is_workflow_path(parts: tuple[str, ...]) -> bool:
     )
 
 
-def _inspect_paths(root: Path) -> list[tuple[str, bool]]:
+def is_documentation_path(relative: str | Path) -> bool:
+    """Return whether a repository-relative path is common setup documentation."""
+
+    path = Path(relative)
+    name = path.name.lower()
+    stem = path.stem.lower()
+    if path.suffix.lower() not in _DOCUMENTATION_EXTENSIONS:
+        return False
+    return name.startswith(_DOCUMENTATION_PREFIXES) or stem.startswith(
+        _DOCUMENTATION_STEM_PREFIXES
+    )
+
+
+def _is_preflight_source_path(relative: str) -> bool:
+    """Return whether a file path can contribute setup evidence."""
+
+    path = Path(relative)
+    basename = path.name.lower()
+    return (
+        is_documentation_path(relative)
+        or fnmatch.fnmatch(basename, "requirements*.txt")
+        or basename in _DEPENDENCY_NAMES
+        or basename.startswith("dockerfile")
+        or _is_workflow_path(tuple(path.parts))
+    )
+
+
+def _inspect_paths(
+    root: Path,
+    limits: ManifestScanLimits,
+) -> tuple[list[tuple[str, bool]], bool, list[str]]:
+    if root.is_symlink():
+        raise ManifestError("Repository workspace cannot be a symlink.")
+
     entries: list[tuple[str, bool]] = []
+    scan_truncated = False
+    warnings: list[str] = []
+
+    def mark_incomplete(message: str) -> None:
+        nonlocal scan_truncated
+        scan_truncated = True
+        if message not in warnings:
+            warnings.append(message)
+
+    def add_entry(relative: str, is_directory: bool) -> bool:
+        if len(entries) >= limits.max_entries:
+            mark_incomplete(
+                "Repository structure scan reached the entry limit; some paths were "
+                "not inspected."
+            )
+            return False
+        entries.append((relative, is_directory))
+        return True
+
     for current, directories, files in os.walk(root, topdown=True, followlinks=False):
         current_path = Path(current)
-        directories[:] = sorted(
-            directory for directory in directories if directory.lower() != ".git"
+        relative_current = current_path.relative_to(root)
+        current_depth = (
+            0 if relative_current == Path(".") else len(relative_current.parts)
         )
-        for directory in directories:
+        discovered_directories = sorted(
+            directories, key=lambda value: (value.lower(), value)
+        )
+        directories[:] = []
+        for directory in discovered_directories:
+            if directory.lower() == ".git":
+                continue
             directory_path = current_path / directory
+            if directory_path.is_symlink():
+                mark_incomplete(
+                    "Repository structure scan skipped a symlinked directory."
+                )
+                continue
+            if current_depth + 1 > limits.max_depth:
+                mark_incomplete(
+                    "Repository structure scan reached the directory-depth limit; "
+                    "some paths were not inspected."
+                )
+                continue
             relative = _relative_path(root, directory_path, directory=True)
-            entries.append((relative, True))
+            if not add_entry(relative, True):
+                return (
+                    sorted(entries, key=lambda entry: (entry[0].lower(), entry[0])),
+                    scan_truncated,
+                    warnings,
+                )
+            directories.append(directory)
         for filename in sorted(files):
             file_path = current_path / filename
             relative = _relative_path(root, file_path)
-            if ".git" not in {part.lower() for part in Path(relative).parts}:
-                entries.append((relative, False))
-    return sorted(entries, key=lambda entry: (entry[0].lower(), entry[0]))
+            if file_path.is_symlink():
+                if _is_preflight_source_path(relative):
+                    mark_incomplete(
+                        "Repository structure scan skipped a symlinked setup source."
+                    )
+                continue
+            if ".git" not in {
+                part.lower() for part in Path(relative).parts
+            } and not add_entry(relative, False):
+                return (
+                    sorted(entries, key=lambda entry: (entry[0].lower(), entry[0])),
+                    scan_truncated,
+                    warnings,
+                )
+    return (
+        sorted(entries, key=lambda entry: (entry[0].lower(), entry[0])),
+        scan_truncated,
+        warnings,
+    )
 
 
 def build_manifest(
     repository: GitHubRepository,
     clone: CloneResult,
+    *,
+    limits: ManifestScanLimits | None = None,
 ) -> RepositoryManifest:
     """Inspect a cloned repository without reading file contents."""
 
@@ -101,6 +226,7 @@ def build_manifest(
     if not root.is_dir():
         raise ManifestError(f"Repository workspace does not exist: {root}")
 
+    policy = limits or ManifestScanLimits()
     documentation_files: set[str] = set()
     dependency_files: set[str] = set()
     test_indicators: set[str] = set()
@@ -111,7 +237,8 @@ def build_manifest(
     config_indicators: set[str] = set()
     important_files: set[str] = set()
 
-    for relative, is_directory in _inspect_paths(root):
+    entries, scan_truncated, scan_warnings = _inspect_paths(root, policy)
+    for relative, is_directory in entries:
         path = Path(relative.rstrip("/"))
         parts = tuple(path.parts)
         basename = path.name.lower()
@@ -128,15 +255,33 @@ def build_manifest(
                 ci_workflow_indicators.add(relative)
             continue
 
-        if basename.startswith(_DOCUMENTATION_PREFIXES):
-            documentation_files.add(relative)
-            important_files.add(relative)
+        if is_documentation_path(relative):
+            if len(documentation_files) < policy.max_documentation_files:
+                documentation_files.add(relative)
+                important_files.add(relative)
+            else:
+                scan_truncated = True
+                warning = (
+                    "Repository documentation discovery reached the file limit; "
+                    "some setup documentation was not inspected."
+                )
+                if warning not in scan_warnings:
+                    scan_warnings.append(warning)
         if (
             fnmatch.fnmatch(basename, "requirements*.txt")
             or basename in _DEPENDENCY_NAMES
         ):
-            dependency_files.add(relative)
-            important_files.add(relative)
+            if len(dependency_files) < policy.max_dependency_files:
+                dependency_files.add(relative)
+                important_files.add(relative)
+            else:
+                scan_truncated = True
+                warning = (
+                    "Repository dependency discovery reached the file limit; "
+                    "some dependency declarations were not inspected."
+                )
+                if warning not in scan_warnings:
+                    scan_warnings.append(warning)
         if basename.startswith("dockerfile"):
             dockerfile_indicators.add(relative)
             important_files.add(relative)
@@ -182,4 +327,6 @@ def build_manifest(
         has_tests=bool(test_indicators),
         has_dockerfile=bool(dockerfile_indicators),
         has_ci_workflows=bool(ci_workflow_indicators),
+        scan_truncated=scan_truncated,
+        scan_warnings=scan_warnings,
     )
