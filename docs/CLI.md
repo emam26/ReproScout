@@ -14,7 +14,7 @@ writing. It prints a concise summary; `--json` emits a machine-readable result.
 For the default research handoff, use the environment-only workflow:
 
 ```text
-reproscout preflight <github-url> [--runs-dir PATH] [--ai] [--json]
+reproscout preflight <github-url> [--profile default|evaluation] [--runs-dir PATH] [--ai] [--json]
 ```
 
 `preflight` verifies only bounded setup facts inside Docker. It never runs
@@ -24,6 +24,23 @@ writes `environment-report.md`, `environment-evidence.json`, and
 passed, not that the project or a research result was reproduced. Non-`READY`
 preflight statuses return exit code one while preserving the artifacts for
 inspection.
+
+`--profile evaluation` is a fixed, non-escalating profile for controlled
+external-repository evaluation. It permits at most five setup-only steps, caps
+each step at 180 seconds, and sets a 900-second plan budget while retaining the
+default Docker limits of 1 CPU, 512 MiB memory, and 128 PIDs. The remaining
+budget is supplied to sandbox creation and rechecked before each command.
+Docker availability checks, management calls, and cleanup have their own bounded
+operations, so this is not a proven strict end-to-end 900-second wall-clock
+limit. The profile does not add commands, networking modes, privileges, or
+resource capacity.
+
+The evaluation profile does **not** enforce a network download-byte cap or a
+cumulative host/Docker storage quota. A quota-backed runs directory and Docker
+data root, plus a metered or allowlisted egress proxy, remain external evaluator
+requirements. The three preflight artifacts record the selected profile,
+effective configured limits, best-effort deadline behavior, external
+requirements, and unverified limits.
 
 For local Docker onboarding, use the read-only diagnostic first:
 

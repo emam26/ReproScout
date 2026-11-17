@@ -39,10 +39,13 @@ from reproscout.onboarding import doctor_report as onboarding_doctor_report
 from reproscout.planning import ReproductionPlan, ReproductionPlanner
 from reproscout.preflight import (
     PreflightArtifactWriter,
+    PreflightExecutionProfile,
     PreflightPlanner,
+    PreflightProfile,
     PreflightResult,
     evaluate_preflight,
     inspect_environment,
+    resolve_preflight_profile,
 )
 from reproscout.repo.clone import (
     CloneError,
@@ -111,6 +114,7 @@ class PreflightRequest(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
     repository_url: str = Field(min_length=1, max_length=2_000)
+    profile: PreflightProfile = PreflightProfile.DEFAULT
     no_ai: bool = True
     provider: str | None = Field(default=None, max_length=50)
     model: str | None = Field(default=None, max_length=200)
@@ -223,6 +227,7 @@ class AuditService:
     def preflight(self, request: PreflightRequest) -> PreflightResult:
         """Prepare and verify an isolated environment without target workflows."""
 
+        execution_profile = resolve_preflight_profile(request.profile)
         repository, workspace = self._prepare_intake(request.repository_url)
         with SQLiteRunStore(self.database_path) as store:
             run = store.create_run(
@@ -231,6 +236,8 @@ class AuditService:
                     "repository_url": repository.normalized_url,
                     "workflow": "environment-preflight",
                     "ai_enabled": not request.no_ai,
+                    "preflight_profile": execution_profile.profile.value,
+                    "execution_profile": execution_profile.model_dump(mode="json"),
                 },
             )
             clone_result: CloneResult | None = None
@@ -288,7 +295,9 @@ class AuditService:
                     ),
                 )
                 store.transition(run.run_id, Stage.PLAN)
-                plan = PreflightPlanner().create_plan(analysis, inspection)
+                plan = PreflightPlanner(execution_profile.planner_limits).create_plan(
+                    analysis, inspection
+                )
                 self._write_plan(workspace.run_dir, plan)
                 execution = self.execution_factory(store).execute(
                     plan,
@@ -297,6 +306,7 @@ class AuditService:
                     workspace=manifest.workspace_path,
                     allow_repair=False,
                     finalize=True,
+                    resource_limits=execution_profile.resource_limits,
                 )
                 diagnosis = None
                 failed = next(
@@ -325,6 +335,7 @@ class AuditService:
                     plan=plan,
                     inspection=inspection,
                     assessment=assessment,
+                    execution_profile=execution_profile,
                 )
                 return PreflightResult(
                     run_id=run.run_id,
@@ -358,6 +369,7 @@ class AuditService:
                     commit_sha=(
                         clone_result.commit_sha if clone_result is not None else None
                     ),
+                    execution_profile=execution_profile,
                 )
                 suffix = f" Artifacts: {artifact_note}." if artifact_note else ""
                 raise ServiceError(
@@ -381,6 +393,7 @@ class AuditService:
                     commit_sha=(
                         clone_result.commit_sha if clone_result is not None else None
                     ),
+                    execution_profile=execution_profile,
                 )
                 suffix = f" Artifacts: {artifact_note}." if artifact_note else ""
                 raise ServiceError(
@@ -820,6 +833,7 @@ class AuditService:
         repository: str,
         error: str,
         commit_sha: str | None = None,
+        execution_profile: PreflightExecutionProfile | None = None,
     ) -> Path | None:
         try:
             paths = PreflightArtifactWriter(run_directory).write_failure(
@@ -827,6 +841,7 @@ class AuditService:
                 repository=repository,
                 error=error,
                 commit_sha=commit_sha,
+                execution_profile=execution_profile,
             )
         except (OSError, ValueError):
             return None

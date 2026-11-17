@@ -21,7 +21,7 @@ from .application import (
 from .application.service import doctor_report
 from .config import get_settings
 from .onboarding import SetupStatus, run_setup
-from .preflight import PreflightStatus
+from .preflight import PreflightProfile, PreflightStatus
 from .repo.clone import (
     CloneError,
     RunWorkspaceError,
@@ -140,6 +140,13 @@ def audit(
 @app.command()
 def preflight(
     repository_url: Annotated[str, typer.Argument(help="HTTPS GitHub repository URL.")],
+    profile: Annotated[
+        PreflightProfile,
+        typer.Option(
+            "--profile",
+            help="Fixed preflight profile: default or evaluation.",
+        ),
+    ] = PreflightProfile.DEFAULT,
     runs_dir: Annotated[
         Path | None,
         typer.Option(
@@ -164,7 +171,11 @@ def preflight(
 
     try:
         result = AuditService(runs_dir).preflight(
-            PreflightRequest(repository_url=repository_url, no_ai=not ai)
+            PreflightRequest(
+                repository_url=repository_url,
+                profile=profile,
+                no_ai=not ai,
+            )
         )
     except (ServiceError, ValueError) as exc:
         _error(str(exc), json_output=json_output)
@@ -174,6 +185,7 @@ def preflight(
         typer.echo(json.dumps(payload, ensure_ascii=False, sort_keys=True))
     else:
         typer.echo("Environment preflight complete.\n")
+        typer.echo(f"Profile: {profile.value}")
         typer.echo(f"Run ID: {result.run_id}")
         typer.echo(f"Status: {result.status.value}")
         verified = "yes" if result.verified_environment else "no"

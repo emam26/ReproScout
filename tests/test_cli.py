@@ -48,6 +48,14 @@ def test_run_help_documents_goal_and_machine_output() -> None:
     assert "--json" in result.stdout
 
 
+def test_preflight_help_documents_the_fixed_profile_option() -> None:
+    result = runner.invoke(app, ["preflight", "--help"])
+
+    assert result.exit_code == 0
+    assert "--profile" in result.stdout
+    assert "evaluation" in result.stdout
+
+
 def test_run_rejects_unknown_goal_before_intake() -> None:
     result = runner.invoke(
         app,
@@ -216,6 +224,61 @@ def test_preflight_non_ready_status_returns_failure_exit_code(
 
     assert result.exit_code == 1
     assert '"status": "INCOMPLETE"' in result.stdout
+
+
+def test_preflight_evaluation_profile_reaches_the_service(
+    monkeypatch, tmp_path
+) -> None:
+    paths = PreflightArtifactPaths(
+        run_directory=tmp_path,
+        environment_report=tmp_path / "environment-report.md",
+        environment_evidence=tmp_path / "environment-evidence.json",
+        agent_handoff=tmp_path / "agent-handoff.md",
+    )
+    received = []
+
+    def fake_preflight(self, request):  # type: ignore[no-untyped-def]
+        del self
+        received.append(request)
+        return PreflightResult(
+            run_id="fixture-run",
+            repository="example/project",
+            commit_sha="a" * 40,
+            status=PreflightStatus.READY,
+            verified_environment=True,
+            artifact_paths=paths,
+        )
+
+    monkeypatch.setattr("reproscout.cli.AuditService.preflight", fake_preflight)
+
+    result = runner.invoke(
+        app,
+        [
+            "preflight",
+            "https://github.com/example/project",
+            "--profile",
+            "evaluation",
+        ],
+    )
+
+    assert result.exit_code == 0
+    assert received[0].profile.value == "evaluation"
+    assert "Profile: evaluation" in result.stdout
+
+
+def test_preflight_rejects_unknown_profile_before_intake() -> None:
+    result = runner.invoke(
+        app,
+        [
+            "preflight",
+            "https://github.com/example/project",
+            "--profile",
+            "unbounded",
+        ],
+    )
+
+    assert result.exit_code == 2
+    assert "--profile" in result.stderr
 
 
 def test_serve_explains_how_to_install_missing_optional_api_dependencies(
