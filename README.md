@@ -5,7 +5,7 @@
     alt="ReproScout compass logo"
     width="115"
   />
-</p>
+</p
 
 
 
